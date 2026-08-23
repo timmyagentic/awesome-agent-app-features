@@ -66,7 +66,7 @@ func newUpdateHarness(t *testing.T, verifier VersionVerifier) updateHarness {
 	if err := os.WriteFile(target, []byte("old binary"), 0o755); err != nil {
 		t.Fatalf("write target: %v", err)
 	}
-	archiveName := "example-agent-v1.2.3-darwin-arm64.tar.gz"
+	archiveName := ReleaseArchiveName("example-agent")("v1.2.3", runtime.GOOS, runtime.GOARCH)
 	archive := tarGzArchive(t, "example-agent", []byte("new binary"))
 	digest := sha256.Sum256(archive)
 	manifest := []byte(fmt.Sprintf("%s  %s\n", hex.EncodeToString(digest[:]), archiveName))
@@ -89,7 +89,7 @@ func newUpdateHarness(t *testing.T, verifier VersionVerifier) updateHarness {
 		ExecutablePath: target,
 		BinaryName:     "example-agent",
 		AssetName: func(tag, goos, goarch string) string {
-			if tag != "v1.2.3" || goos != "darwin" || goarch != "arm64" {
+			if tag != "v1.2.3" || goos != runtime.GOOS || goarch != runtime.GOARCH {
 				t.Fatalf("unexpected asset inputs: %s %s %s", tag, goos, goarch)
 			}
 			return archiveName
@@ -100,8 +100,6 @@ func newUpdateHarness(t *testing.T, verifier VersionVerifier) updateHarness {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	instance.platformOS = "darwin"
-	instance.platformArch = "arm64"
 	return updateHarness{
 		updater:     instance,
 		source:      source,

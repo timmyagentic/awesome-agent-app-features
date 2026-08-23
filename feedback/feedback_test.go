@@ -1,11 +1,9 @@
 package feedback
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -44,7 +42,7 @@ func TestRedactRemovesSensitiveShapes(t *testing.T) {
 	}
 }
 
-func TestBuilderCreatesSingleReportShapeAndDropsStaleError(t *testing.T) {
+func TestBuilderCreatesStructuredReportAndDropsStaleError(t *testing.T) {
 	now := time.Date(2026, 8, 23, 9, 0, 0, 0, time.UTC)
 	builder := Builder{Now: func() time.Time { return now }}
 	draft, err := builder.Build(Input{
@@ -64,32 +62,38 @@ func TestBuilderCreatesSingleReportShapeAndDropsStaleError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	submission := draft.Submission()
-	if submission.Schema != 1 || submission.UserApproved {
-		t.Fatalf("unexpected draft schema/approval: %+v", submission)
+	report := draft.Report()
+	if report.Environment.Product != "Example Agent" || report.Environment.Version != "v1.2.3" {
+		t.Fatalf("environment = %+v", report.Environment)
 	}
-	if !strings.HasPrefix(submission.Title, "[feedback] Please add webhook retries") {
-		t.Fatalf("title = %q", submission.Title)
+	if !strings.Contains(report.Description, "Please add webhook retries") || strings.Contains(report.Description, "do-not-send") {
+		t.Fatalf("description = %q", report.Description)
 	}
-	for _, want := range []string{
-		"Please add webhook retries",
-		"Most recent error",
-		"[REDACTED-PATH]",
-		"agent.fast\\_mode",
-		"webhook.retry",
-		"Product: Example Agent",
-		"OS/Arch:",
-	} {
-		if !strings.Contains(submission.Body, want) {
-			t.Errorf("body missing %q:\n%s", want, submission.Body)
+	if report.RecentError == nil || !strings.Contains(report.RecentError.Text, "[REDACTED-PATH]") {
+		t.Fatalf("recent error = %+v", report.RecentError)
+	}
+	wantGaps := []string{"agent.fast_mode", "webhook.retry"}
+	if !reflect.DeepEqual(report.CapabilityGaps, wantGaps) {
+		t.Fatalf("capability gaps = %v, want %v", report.CapabilityGaps, wantGaps)
+	}
+
+	if _, err := json.Marshal(report); !errors.Is(err, ErrApprovalRequired) {
+		t.Fatalf("preview report marshal error = %v", err)
+	}
+	reportType := reflect.TypeOf(Report{})
+	for _, field := range []string{"Title", "Body", "Repository", "IssueURL"} {
+		if _, exists := reportType.FieldByName(field); exists {
+			t.Fatalf("provider-neutral report exposes presentation/provider field %s", field)
 		}
 	}
-	if strings.Contains(submission.Body, "do-not-send") || strings.Count(submission.Body, "webhook.retry") != 1 {
-		t.Fatalf("body was not redacted/deduplicated:\n%s", submission.Body)
-	}
-	preview := draft.Preview()
-	if !strings.Contains(preview, "Installation ID: install-123") || !strings.Contains(preview, submission.Body) {
-		t.Fatalf("preview omits outbound fields:\n%s", preview)
+
+	// Report must be a deep copy so a renderer cannot mutate the draft that
+	// is later approved.
+	report.CapabilityGaps[0] = "mutated"
+	report.RecentError.Text = "mutated"
+	again := draft.Report()
+	if again.CapabilityGaps[0] == "mutated" || again.RecentError.Text == "mutated" {
+		t.Fatal("Report returned mutable draft storage")
 	}
 
 	stale, err := builder.Build(Input{
@@ -103,8 +107,8 @@ func TestBuilderCreatesSingleReportShapeAndDropsStaleError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build stale input: %v", err)
 	}
-	if strings.Contains(stale.Submission().Body, "old failure") {
-		t.Fatalf("stale error was attached:\n%s", stale.Submission().Body)
+	if stale.Report().RecentError != nil {
+		t.Fatalf("stale error was attached: %+v", stale.Report().RecentError)
 	}
 }
 
@@ -123,53 +127,72 @@ func TestBuilderRejectsEmptyOrUnsafeMetadata(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "installation ID") {
 		t.Fatalf("unsafe installation ID error = %v", err)
 	}
+	draft, err := (Builder{AdditionalRedact: func(value string) string {
+		return strings.ReplaceAll(value, "internal-project", "[PRODUCT-REDACTED]")
+	}}).Build(Input{
+		Description: "internal-project token=must-never-pass",
+		Environment: Environment{Product: "Example"},
+	})
+	if err != nil {
+		t.Fatalf("Build with additional redaction: %v", err)
+	}
+	if got := draft.Report().Description; strings.Contains(got, "internal-project") || strings.Contains(got, "must-never-pass") {
+		t.Fatalf("combined redaction leaked input: %q", got)
+	}
+	_, err = (Builder{AdditionalRedact: func(value string) string {
+		if value == "remove all of this" {
+			return ""
+		}
+		return value
+	}}).Build(Input{
+		RecentError: &RecentError{Text: "remove all of this", At: time.Now()},
+		Environment: Environment{Product: "Example"},
+	})
+	if !errors.Is(err, ErrNothingToReport) {
+		t.Fatalf("fully removed recent error = %v", err)
+	}
 }
 
-func TestBuilderLimitsRemainValidUTF8(t *testing.T) {
-	draft, err := (Builder{MaxDescription: 48, MaxBody: 420, MaxTitle: 32}).Build(Input{
-		Description: strings.Repeat("反馈内容", 100),
-		Environment: Environment{Product: "示例应用"},
+func TestBuilderFieldLimitsRemainValidUTF8(t *testing.T) {
+	draft, err := (Builder{}).Build(Input{
+		Description: strings.Repeat("反馈内容", 1000),
+		RecentError: &RecentError{
+			Text: strings.Repeat("错误详情", 1000),
+			At:   time.Now(),
+		},
+		CapabilityGaps: []string{strings.Repeat("能力缺口", 1000)},
+		Environment:    Environment{Product: "示例应用"},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	submission := draft.Submission()
-	if len(submission.Title) > 32 || len(submission.Body) > 420 {
-		t.Fatalf("limits exceeded: title=%d body=%d", len(submission.Title), len(submission.Body))
+	report := draft.Report()
+	values := []struct {
+		name  string
+		value string
+		limit int
+	}{
+		{"description", report.Description, MaxDescriptionBytes},
+		{"recent error", report.RecentError.Text, MaxErrorBytes},
+		{"capability gap", report.CapabilityGaps[0], MaxCapabilityGapBytes},
 	}
-	if !utf8.ValidString(submission.Title) || !utf8.ValidString(submission.Body) {
-		t.Fatal("truncation produced invalid UTF-8")
+	for _, value := range values {
+		if len(value.value) > value.limit || !utf8.ValidString(value.value) {
+			t.Errorf("%s is invalid: bytes=%d value=%q", value.name, len(value.value), value.value)
+		}
 	}
 }
 
-func TestApprovalAndClientSubmission(t *testing.T) {
-	var received Submission
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodPost || request.URL.Path != "/v1/feedback" {
-			http.NotFound(writer, request)
-			return
-		}
-		if got := request.Header.Get("User-Agent"); got != "example-agent/1.0" {
-			t.Errorf("User-Agent = %q", got)
-		}
-		if err := json.NewDecoder(request.Body).Decode(&received); err != nil {
-			t.Errorf("decode submission: %v", err)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"issue_url":"https://github.com/owner/repo/issues/7","deduplicated":true}`))
-	}))
-	defer server.Close()
-
+func TestApprovalProducesOnlyValidWirePayload(t *testing.T) {
+	if _, err := json.Marshal(Approved{}); !errors.Is(err, ErrApprovalRequired) {
+		t.Fatalf("zero Approved marshal error = %v", err)
+	}
 	draft, err := (Builder{}).Build(Input{
 		Description: "Please improve startup diagnostics",
 		Environment: Environment{Product: "Example Agent", Version: "v1.0.0"},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
-	}
-	client := Client{Endpoint: server.URL + "/v1/feedback", UserAgent: "example-agent/1.0"}
-	if _, err := client.Submit(context.Background(), Approved{}); !errors.Is(err, ErrApprovalRequired) {
-		t.Fatalf("zero Approved error = %v", err)
 	}
 	if _, err := draft.Approve(false); !errors.Is(err, ErrApprovalRequired) {
 		t.Fatalf("rejected approval error = %v", err)
@@ -178,28 +201,20 @@ func TestApprovalAndClientSubmission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Approve: %v", err)
 	}
-	receipt, err := client.Submit(context.Background(), approved)
+	payload, err := json.Marshal(approved)
 	if err != nil {
-		t.Fatalf("Submit: %v", err)
+		t.Fatalf("marshal Approved: %v", err)
 	}
-	if receipt.IssueURL != "https://github.com/owner/repo/issues/7" || !receipt.Deduplicated {
-		t.Fatalf("receipt = %+v", receipt)
+	var received struct {
+		Schema       int    `json:"schema"`
+		UserApproved bool   `json:"user_approved"`
+		Description  string `json:"description"`
 	}
-	if !received.UserApproved || received.Title != draft.Submission().Title {
-		t.Fatalf("received submission = %+v", received)
+	if err := json.Unmarshal(payload, &received); err != nil {
+		t.Fatalf("decode Approved: %v", err)
 	}
-}
-
-func TestClientRejectsInsecureRemoteEndpoint(t *testing.T) {
-	client := Client{Endpoint: "http://feedback.example.com/v1/feedback"}
-	approved := Approved{valid: true, submission: Submission{
-		Schema:       1,
-		UserApproved: true,
-		Title:        "title",
-		Body:         "body",
-	}}
-	if _, err := client.Submit(context.Background(), approved); err == nil || !strings.Contains(err.Error(), "HTTPS") {
-		t.Fatalf("insecure endpoint error = %v", err)
+	if received.Schema != WireSchemaVersion || !received.UserApproved || received.Description != draft.Report().Description {
+		t.Fatalf("approved payload = %+v", received)
 	}
 }
 

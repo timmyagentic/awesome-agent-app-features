@@ -75,7 +75,7 @@ func extractZipBinary(archivePath, binaryName, targetDirectory string, maximum i
 	defer archive.Close()
 	var staged string
 	for _, entry := range archive.File {
-		if entry.FileInfo().IsDir() || !archiveEntryMatches(entry.Name, binaryName) {
+		if !entry.Mode().IsRegular() || !archiveEntryMatches(entry.Name, binaryName) {
 			continue
 		}
 		if staged != "" {

@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	stableTagPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
-	versionPattern   = regexp.MustCompile(`^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([0-9A-Za-z.-]+))?$`)
+	stableTagPattern   = regexp.MustCompile(`^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+	versionPattern     = regexp.MustCompile(`^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$`)
+	developmentPattern = regexp.MustCompile(`^dev(?:[-+.]([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$`)
 )
 
 // ValidateStableRelease rejects drafts, prereleases, whitespace variants, and
@@ -35,7 +36,7 @@ func IsNewerStable(candidate, current string) (bool, error) {
 		return false, fmt.Errorf("candidate %q is not an exact stable version", candidate)
 	}
 	current = strings.TrimSpace(current)
-	if strings.HasPrefix(current, "dev") {
+	if developmentPattern.MatchString(current) {
 		return true, nil
 	}
 	candidateVersion, err := parseVersion(candidate)
@@ -75,8 +76,25 @@ func parseVersion(value string) (parsedVersion, error) {
 		}
 		parsed.numbers[index] = number
 	}
-	parsed.prerelease = matches[5]
+	parsed.prerelease = matches[4]
+	for _, identifier := range strings.Split(parsed.prerelease, ".") {
+		if len(identifier) > 1 && identifier[0] == '0' && allASCIIDigits(identifier) {
+			return parsedVersion{}, fmt.Errorf("%q has a prerelease numeric identifier with a leading zero", value)
+		}
+	}
 	return parsed, nil
+}
+
+func allASCIIDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, character := range value {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // CommandVersionVerifier runs an executable and requires its first output line

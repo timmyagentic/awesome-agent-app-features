@@ -1,29 +1,19 @@
-# Updater integration contract
+# Updater v1 integration contract
 
-The updater is a transaction core, not an update UI. Every chat, CLI, or GUI
-adapter must delegate to one configured `updater.Updater`.
+Read `feature.json` and [the full transaction contract](../../docs/updater-contract.md) first.
+
+Interactive entry points must use:
 
 ```text
-latest stable release
-  -> exact archive + exact checksums asset on that release
-  -> bounded download
-  -> SHA-256
-  -> extract one configured binary in target directory
-  -> staged version probe
-  -> backup + same-filesystem rename
-  -> installed version probe
-  -> remove backup, or rollback on failure
+Prepare -> render exact Plan -> authorize -> Apply(the same Plan)
 ```
 
-The built-in GitHub source uses `/releases/latest` and independently validates
-the response. It does not infer assets from another tag or download a checksum
-from a moving branch.
+`Prepare` validates one exact stable release, selects the archive/checksum and archive entry, downloads the bounded checksum manifest, and pins SHA-256. `Apply` never queries latest. A new successful `Prepare` supersedes older plans; a failed Apply can retry the same plan, while a successful one is consumed.
 
-The checksum protects archive integrity only. Add a separately rooted signature
-or provenance verifier in a higher-assurance release pipeline.
+`updater/github.Source` is an infrastructure adapter, not part of the core. A custom source must return internally consistent release metadata and download only the supplied exact `Asset`.
 
-The MVP intentionally does not generalize package-manager installs. An npm,
-Homebrew, or other adapter must preserve the same stable target and post-install
-version contract and define its own honest rollback behavior. The standalone
-updater refuses a symlink executable path so it does not silently rewrite a
-package-manager target.
+Static archives use `BinaryName`. Archives whose entry changes by tag/OS/arch use `ArchiveBinaryName`. Neither option can bypass checksum, bounded extraction, staged verification, installed verification, locking, backup, or rollback.
+
+All host entry points share one updater configuration. They may render events differently but cannot duplicate stable selection or replacement policy. `UpdateLatest` is for an already-authorized non-interactive action. Restart and acknowledgement always remain host-owned.
+
+The standalone adapter supports macOS/Linux regular executable paths. npm, Homebrew, symlink installations, and Windows require explicit install-kind adapters with honest verification and recovery behavior.

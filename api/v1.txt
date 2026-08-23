@@ -1,0 +1,79 @@
+package github.com/timmyagentic/awesome-agent-app-features/feedback
+const DefaultErrorMaxAge = 30 * time.Minute
+const MaxCapabilityGapBytes = 160
+const MaxCapabilityGaps = 20
+const MaxDescriptionBytes = 4000
+const MaxErrorBytes = 4000
+const MaxMetadataBytes = 160
+const WireSchemaVersion = 1
+func (Approved) MarshalJSON() ([]byte, error)
+func (Builder) Build(Input) (Draft, error)
+func (Draft) Approve(bool) (Approved, error)
+func (Draft) Report() (Report)
+func (Report) MarshalJSON() ([]byte, error)
+func NewInstallID() (string, error)
+func Redact(string) (string)
+type Approved struct{opaque}
+type Builder struct{Now func() (time.Time); AdditionalRedact func(string) (string); ErrorMaxAge time.Duration}
+type Draft struct{opaque}
+type Environment struct{Product string; Version string; OS string; Arch string; Agent string}
+type Input struct{Description string; RecentError *RecentError; CapabilityGaps []string; Environment Environment; InstallID string}
+type RecentError struct{Text string; At time.Time}
+type Report struct{InstallID string; Environment Environment; Description string; RecentError *RecentError; CapabilityGaps []string}
+var ErrApprovalRequired error
+var ErrNothingToReport error
+
+package github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient
+const EndpointPath = "/v1/feedback"
+func (Client) Submit(context.Context, feedback.Approved) (Receipt, error)
+type Client struct{Endpoint string; HTTPClient *http.Client; UserAgent string}
+type Receipt struct{ReferenceURL string `json:"reference_url"`; Deduplicated bool `json:"deduplicated,omitempty"`}
+
+package github.com/timmyagentic/awesome-agent-app-features/updater
+const StageAvailable Stage = "available"
+const StageChecking Stage = "checking"
+const StageChecksumVerified Stage = "checksum_verified"
+const StageComplete Stage = "complete"
+const StageDownloadingArchive Stage = "downloading_archive"
+const StageDownloadingChecksums Stage = "downloading_checksums"
+const StageInstalledVerified Stage = "installed_version_verified"
+const StageInstalling Stage = "installing"
+const StageStagedVerified Stage = "staged_version_verified"
+const StageUpToDate Stage = "up_to_date"
+func (*Updater) Apply(context.Context, Plan) (Result, error)
+func (*Updater) Prepare(context.Context) (Plan, error)
+func (*Updater) UpdateLatest(context.Context) (Result, error)
+func (CommandVersionVerifier) Verify(context.Context, string, string) (error)
+func (Plan) ArchiveAsset() (Asset)
+func (Plan) Available() (bool)
+func (Plan) Release() (Release)
+func (VersionVerifierFunc) Verify(context.Context, string, string) (error)
+func ExactVersionLine(string) (CommandVersionVerifier)
+func IsNewerStable(string, string) (bool, error)
+func New(Config) (*Updater, error)
+func ReleaseArchiveName(string) (AssetNameFunc)
+func ValidateStableRelease(Release) (error)
+type Asset struct{Name string; DownloadURL string; Size int64}
+type AssetNameFunc func(string, string, string) (string)
+type BinaryNameFunc func(string, string, string) (string)
+type CommandVersionVerifier struct{Args []string; ExpectedLine func(string) (string); Timeout time.Duration}
+type Config struct{Product string; CurrentVersion string; ExecutablePath string; BinaryName string; ArchiveBinaryName BinaryNameFunc; ChecksumsAsset string; AssetName AssetNameFunc; Source Source; Verifier VersionVerifier; MaxArchiveSize int64; MaxBinarySize int64; Progress func(Event)}
+type Event struct{Product string; Stage Stage; CurrentVersion string; TargetVersion string; Asset string; Bytes int64}
+type Plan struct{opaque}
+type Release struct{Tag string; URL string; Draft bool; Prerelease bool; Assets []Asset}
+type Result struct{Release Release; Updated bool; ArchiveAsset string; BackupRetainedAt string}
+type Source interface{Download(context.Context, Asset, io.Writer) (error); LatestStable(context.Context) (Release, error)}
+type Stage string
+type Updater struct{opaque}
+type VersionVerifier interface{Verify(context.Context, string, string) (error)}
+type VersionVerifierFunc func(context.Context, string, string) (error)
+var ErrInvalidPlan error
+var ErrPlanConsumed error
+var ErrPlanSuperseded error
+var ErrUpdateInProgress error
+
+package github.com/timmyagentic/awesome-agent-app-features/updater/github
+func (Source) Download(context.Context, updater.Asset, io.Writer) (error)
+func (Source) LatestStable(context.Context) (updater.Release, error)
+type Source struct{Repository string; HTTPClient *http.Client; APIBaseURL string; UserAgent string; AllowedAssetHosts []string}
+

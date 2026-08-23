@@ -1,34 +1,35 @@
 # Awesome Agent App Features
 
-[English](README.en.md) · [Agent 接入指南](docs/agent-integration.md) · [安全模型](docs/security.md)
+[English](README.en.md) · [Agent 接入指南](docs/agent-integration.md) · [兼容策略](COMPATIBILITY.md) · [安全模型](docs/security.md)
 
-给 Agent 应用复用的产品功能代码。把仓库链接交给 coding agent，它可以按你的代码结构，把成熟的 Feedback 和安全更新机制接进去。
+给 Agent 应用复用的无界面 Feature 基座。把仓库和目标项目交给 coding agent，它先理解宿主架构，再把可靠的底层能力接进去；卡片、命令、权限、本地化、重启与业务流程始终留在宿主项目。
 
-这不是 awesome 链接清单，也不是 Codex Skills 集合。这里交付的是可运行的包、明确的安全约束、可机读的 feature manifest、接入步骤和回归测试。
+这不是 awesome 链接清单、Codex Skills 集合、UI 框架或托管 SaaS。当前未发布的 `v1` 契约收稳三个接入层面的结果：
 
-## MVP 里有什么
-
-| Feature | 解决的问题 | 当前实现 |
+| 能力 | 本仓库提供 | 宿主产品提供 |
 | --- | --- | --- |
-| Feedback | 让用户在产品内提交脱敏反馈，同时不把 GitHub Token 放进客户端 | Go 草稿/脱敏/确认/提交包 + 单租户 Cloudflare GitHub relay |
-| Updater | 让聊天、CLI 或 UI 共用同一条可信稳定版更新事务 | Go standalone 更新器；stable-only、同 Release checksum、双版本验证、跨进程锁和失败回滚 |
+| Agent 友好接入 | machine-readable manifests、边界、示例、API/消费者契约和验证命令 | coding agent 按现有架构编写胶水代码并跑宿主测试 |
+| Feedback | 脱敏 `Draft`、不可序列化预览、显式 `Approved`、Feedback v1 HTTPS client、单租户 Cloudflare relay | 触发时机、飞书/Slack/CLI/Web 呈现、确认动作、失败体验 |
+| Updater | immutable exact plan、stable-only、同 release checksum、双版本验证、锁、no-clobber backup、回滚 | 更新提示、授权、安装类型判断、重启与重启后确认 |
 
-MVP 面向 Go 构建的 Agent 命令行/后台应用；更新器的原地替换承诺目前限定在 macOS 和 Linux。宿主产品继续负责卡片、按钮、自然语言意图、管理员权限、本地化、重启与最终 UI。
+## 当前接入方式
 
-## 最快的使用方式：交给 Agent
+项目尚未发布版本。评估当前 v1 契约时请使用 Go 1.25 或更高版本，并固定到你已经审查的完整 commit SHA，不要依赖浮动的 `main`：
 
-把这段话连同你的项目发给 coding agent：
-
-```text
-请阅读 https://github.com/timmyagentic/awesome-agent-app-features ，
-先检查我的项目现有架构，再按照 features/feedback/feature.json 和
-features/updater/feature.json 接入这两个功能。保留 manifest 中的 invariants，
-适配我现有的 UI、权限、版本输出和 Release 命名，并运行各自 verification。
+```bash
+go get github.com/timmyagentic/awesome-agent-app-features@FULL_REVIEWED_COMMIT_SHA
 ```
 
-Agent 应先盘点现有反馈入口、版本来源、发布资产、权限和重启生命周期，再修改代码；完整流程见 [docs/agent-integration.md](docs/agent-integration.md)。
+`v1` 公开包只有：
 
-## Feedback：核心接法
+```text
+feedback
+feedback/httpclient
+updater
+updater/github
+```
+
+## Feedback
 
 ```go
 draft, err := (feedback.Builder{}).Build(feedback.Input{
@@ -43,9 +44,9 @@ if err != nil {
     return err
 }
 
-// 必须向用户展示完整脱敏内容或等价的完整渲染。
-showToUser(draft.Preview())
-if !userClickedSubmit() {
+// 宿主用自己的卡片、文本、CLI 或 Web UI 渲染每一个字段。
+renderEveryField(draft.Report())
+if !userExplicitlyConfirmed() {
     return nil
 }
 
@@ -53,14 +54,14 @@ approved, err := draft.Approve(true)
 if err != nil {
     return err
 }
-receipt, err := (feedback.Client{
-    Endpoint: "https://your-relay.example/v1/feedback",
+receipt, err := (httpclient.Client{
+    Endpoint: "https://feedback.example/v1/feedback",
 }).Submit(ctx, approved)
 ```
 
-库只允许 `Approved` 进入提交 API；relay 还会再次要求 `user_approved: true`。自动附加的环境信息是固定白名单，不接受任意环境变量 map。Relay 部署说明在 [relay/cloudflare](relay/cloudflare/README.md)。
+`Report` 是 deep copy，标准 JSON 编码会返回 `ErrApprovalRequired`；只有 opaque `Approved` 能生成 schema 1 wire payload。Core 不生成 Issue title、Markdown body、卡片或文案。Reference relay 使用服务端固定的 GitHub repository/token，客户端不能选择目的地。协议和共享 fixtures 在 [protocol/feedback/v1](protocol/feedback/v1)。
 
-## Updater：核心接法
+## Updater
 
 ```go
 service, err := updater.New(updater.Config{
@@ -69,7 +70,7 @@ service, err := updater.New(updater.Config{
     ExecutablePath: executablePath,
     BinaryName:     "my-agent-app",
     AssetName:      updater.ReleaseArchiveName("my-agent-app"),
-    Source: updater.GitHubSource{
+    Source: updatergithub.Source{
         Repository: "owner/my-agent-app",
     },
     Verifier: updater.ExactVersionLine("my-agent-app"),
@@ -79,59 +80,62 @@ if err != nil {
     return err
 }
 
-result, err := service.Update(ctx)
+plan, err := service.Prepare(ctx)
+if err != nil || !plan.Available() {
+    return err
+}
+renderExactUpdate(plan.Release(), plan.ArchiveAsset())
+if !userExplicitlyConfirmed() {
+    return nil
+}
+result, err := service.Apply(ctx, plan)
 ```
 
-默认资产约定：
+请分别导入 `updater` 与 `updater/github`。`Prepare` 锁定 release、archive、archive 内 binary name 和 checksum；`Apply` 只执行这个 plan，不会再次查询 latest。新的成功 `Prepare` 会让旧 plan 返回 `ErrPlanSuperseded`。已经完成授权的非交互 CLI/管理员入口可以直接调用 `UpdateLatest`。
+
+默认归档命名为 `<product>-<tag>-<os>-<arch>.tar.gz`（Windows 为 zip），checksum 文件默认为 `checksums.txt`。若归档内 binary name 随 tag/平台变化，使用 `ArchiveBinaryName`。standalone 原地替换承诺限定在 macOS/Linux，并拒绝 symlink executable；npm、Homebrew 与 Windows 需要宿主自己的安装 adapter。
+
+## 给 coding agent 的接入指令
 
 ```text
-my-agent-app-v1.2.3-darwin-arm64.tar.gz
-my-agent-app-v1.2.3-linux-amd64.tar.gz
-my-agent-app-v1.2.3-windows-amd64.zip
-checksums.txt
+本项目尚未发布版本。请固定使用已审查的完整 commit SHA；不要使用 main、
+本地 replace 或浮动引用。正式 v1 tag 发布后再切换到对应不可变版本。
+先读取 features/<feature>/feature.json、对应 README 和
+docs/agent-integration.md，再盘点我项目已有的 UI、权限、版本真相、
+Release 资产、安装类型与重启生命周期。复用 foundation core/adapters，
+在宿主侧实现展示和业务流程，保留每条 invariants，并运行双方验证。
 ```
 
-可以替换 `AssetName` 和 `VersionVerifier` 适配现有仓库，但不能绕过以下顺序：严格稳定版 → 同一 Release 精确资产 → SHA-256 → staged 版本 → 备份/替换 → installed 版本 → 失败回滚。
-
-## 仓库结构
-
-```text
-feedback/               Go Feedback 核心
-updater/                Go stable-only standalone 更新器
-relay/cloudflare/       自托管单租户 GitHub issue relay
-features/*/feature.json Agent 可读的接入契约
-examples/               最小可编译接入示例
-docs/                   架构、安全与 Agent 接入说明
-```
+宿主侧的飞书卡片只是 `Report`/`Plan`/`Event` 的 renderer，不能进入本仓库。完整所有权边界见 [docs/architecture.md](docs/architecture.md)。
 
 ## 安全边界
 
-- 客户端永远不持有 GitHub Token，也不能指定 relay 的目标仓库。
-- Feedback 只有一种形态；错误和能力缺口只是经用户确认的上下文。
-- 普通更新永远不选择 beta/rc；Release 标签必须精确匹配 `v?X.Y.Z`。
-- checksum manifest 和 archive 必须来自同一个已选 Release。
-- checksum 解决下载完整性，不等于 Release 发布身份签名。高风险项目应通过 `Source`/发布流程增加签名或 provenance 校验。
-- 已存在 `.update-backup` 时更新器拒绝覆盖，给人工恢复留下证据。
+- Feedback 不在后台提交；`Approved` 必须来自明确用户动作。
+- 默认脱敏、固定环境白名单和 UTF-8 byte limits 在 Go 与 relay 两侧重复执行。
+- 普通更新只接受精确 `v?X.Y.Z` stable tag；draft、prerelease 和前导零版本会被拒绝。
+- checksum 在 `Prepare` 阶段固定，archive 在任何提取/执行/替换前验证。
+- staged 和 installed binary 都必须报告 exact target version，否则不替换或回滚。
+- 锁文件 symlink、executable symlink 和已有 recovery backup 都 fail closed。
+- checksum 证明下载内容一致，不证明发布者身份；高风险产品仍应加入独立签名或 provenance。
 
-完整威胁模型见 [docs/security.md](docs/security.md)。
+## 结构与门禁
 
-## 当前边界
-
-这是 MVP，不包含 npm 自动回滚、多租户反馈 SaaS、Dashboard、账号系统、Windows 原地替换保证、包发布或托管 relay。仓库本身也没有发布 Go module tag；接入时请固定到经过你验证的 commit。
-
-standalone 更新器会拒绝符号链接形式的可执行文件；npm、Homebrew 等安装必须由宿主先检测安装类型，再接入对应的包管理器适配器。
-
-## 验证
-
-```bash
-gofmt -l .
-go test -race ./...
-go vet ./...
-npm test --prefix relay/cloudflare
-npm run check --prefix relay/cloudflare
-npm run validate:worker --prefix relay/cloudflare
+```text
+api/v1.txt                    v1 公开 API 快照
+compat/v1                     只使用公开符号的外部消费者编译契约
+features/*                    Agent 可读的接入 manifest
+feedback/                     Provider-neutral Feedback core
+feedback/httpclient/          Feedback v1 HTTPS adapter
+protocol/feedback/v1/         JSON Schema 与 Go/JS 共享 fixtures
+updater/                      Stable standalone transaction core
+updater/github/               GitHub Releases source adapter
+relay/cloudflare/             可运行的单租户 GitHub Issues relay
 ```
 
-这个项目从 [CC Connect Next](https://github.com/timmyagentic/cc-connect-next) 已验证的 Feedback 和统一更新执行器中提炼，但去掉了飞书、聊天命令、CLI 文案和具体发布命名等产品绑定层。
+```bash
+make verify
+```
 
-MIT License
+正式发布后，`v1` 遵循 SemVer；公开 API、wire protocol 和 manifest invariants 的变化规则见 [COMPATIBILITY.md](COMPATIBILITY.md)。
+
+本项目从 [CC Connect Next](https://github.com/timmyagentic/cc-connect-next) 的 Feedback 与统一更新执行器中提炼，只保留可复用基座。MIT License。

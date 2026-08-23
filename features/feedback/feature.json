@@ -3,12 +3,45 @@
   "schema": 1,
   "id": "feedback",
   "name": "User-approved in-product feedback",
-  "maturity": "mvp",
+  "maturity": "stable",
+  "contract": "v1",
+  "release_status": "unreleased",
+  "since": null,
   "runtime": ["go", "cloudflare-worker"],
   "package": "./feedback",
+  "integration_model": "agent-assisted-code-change",
+  "foundation": {
+    "core": [
+      "Provider-neutral structured feedback draft and wire schema.",
+      "Allowlisted environment fields, redaction, field bounds, stale-error filtering, and capability-gap normalization.",
+      "Opaque explicit-approval type that is the only serializable transport input."
+    ],
+    "adapters": [
+      {
+        "path": "./feedback/httpclient",
+        "role": "HTTPS client for sending an approved structured report to an author-operated relay."
+      },
+      {
+        "path": "./relay/cloudflare",
+        "role": "Reference single-tenant adapter that validates the structured schema and renders it as a GitHub Issue."
+      }
+    ],
+    "host": [
+      "Choose which fresh product context is relevant to the report.",
+      "Render every field from Draft.Report in cards, text, CLI, or web UI.",
+      "Define the explicit user action that grants approval.",
+      "Configure relay availability, failure UX, and a public fallback."
+    ],
+    "excludes": [
+      "Channel-specific cards, buttons, commands, or localization.",
+      "Natural-language intent detection and product authorization policy.",
+      "Conversation transcripts, reasoning, tool payloads, or arbitrary environment capture.",
+      "A hosted multi-tenant feedback service."
+    ]
+  },
   "relay": "./relay/cloudflare",
   "prerequisites": [
-    "The host can render the complete redacted draft before submission.",
+    "The host can render every field in the complete structured redacted draft before submission.",
     "The host has an explicit user action that means submit.",
     "The author can operate a single-tenant HTTPS relay, a Cloudflare Rate Limiting binding, and a repository-scoped GitHub token."
   ],
@@ -16,21 +49,26 @@
     "There is one feedback shape; errors and capability gaps are optional context, not categories.",
     "No report is submitted in the background or before an explicit user action.",
     "Every outbound free-text field is redacted and bounded before approval.",
+    "Draft.Report is a deep-copied preview and cannot be JSON-marshaled; only opaque Approved emits Feedback v1 JSON.",
+    "The core payload contains structured report data and no issue title, Markdown body, card, or localized presentation.",
     "Automatically captured environment data is a fixed allowlist.",
+    "The provided HTTP client never follows redirects for an approved feedback POST.",
+    "The provided HTTP client and reference relay use only POST /v1/feedback for wire schema 1.",
     "The client has no GitHub token and cannot select the relay target repository.",
     "The relay validates schema, approval, fields, and byte limits again."
   ],
   "integration_steps": [
     "Inventory user-visible errors, capability gaps, feedback UI, configuration, and fallback issue URL.",
     "Build a feedback.Input from user prose plus only fresh, relevant context.",
-    "Show Draft.Preview or an equivalent rendering of every outbound field.",
+    "Render every field returned by Draft.Report using the host's own UI and localization.",
     "Call Draft.Approve(true) only after the host receives the explicit user action.",
-    "Submit Approved through feedback.Client to the self-hosted HTTPS relay.",
+    "Submit Approved through feedback/httpclient.Client to the self-hosted HTTPS relay.",
     "Handle relay failure without exposing payloads or credentials, and offer the public issue fallback.",
     "Add product-specific redaction and approval regression tests."
   ],
   "verification": [
-    "go test -race ./feedback",
+    "go test -race ./feedback/...",
+    "go test ./compat/v1 ./internal/contract",
     "npm test --prefix relay/cloudflare",
     "npm run check --prefix relay/cloudflare",
     "npm run validate:worker --prefix relay/cloudflare"

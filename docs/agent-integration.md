@@ -1,82 +1,63 @@
 # Coding-agent integration guide
 
-这份文档是给接入方 coding agent 的施工入口。它不是 Skill：Agent 先读取契约，再根据宿主项目实际结构修改代码。
+这是一份给接入方 coding agent 的施工契约，不是 Skill，也不是把一段代码盲目复制进项目。
 
-## Operating model
+## 标准流程
 
-One feature installation is a code change in the target repository, not a
-blind package install. The agent must map this kit's policy/core boundary onto
-the host's existing architecture.
+1. 当前尚未发布版本：固定依赖到已审查的完整 commit SHA，不要引用 `main`、本地 worktree 或 floating commit；正式 v1 tag 发布后再切换。
+2. 完整读取 `features/<id>/feature.json`、对应 README、架构和安全文档。
+3. 修改前盘点宿主现状，并为每条 `foundation.core`、adapter、host responsibility、exclusion、integration step 和 invariant 写出映射。
+4. 复用公开 core/adapter；在宿主仓库写薄适配层处理 UI、授权、配置和生命周期。
+5. 先补宿主侧聚焦失败测试，再完成接线。
+6. 运行 manifest verification、本仓库 consumer contract，以及宿主项目正常验证。
+7. 把无法执行的真实客户端、生产凭证或重启验证明确标记为 `UNVERIFIED`。
 
-1. Read the selected `features/<id>/feature.json` and its README completely.
-2. Inventory the host before editing.
-3. Write down the host-specific mapping for every integration step and
-   invariant.
-4. Add the reusable core or dependency.
-5. Build thin host adapters for UI, authorization, lifecycle, and configuration.
-6. Add focused failure tests before declaring the feature installed.
-7. Run both the manifest verification commands and the host repository's normal
-   validation.
+## Feedback 盘点
 
-## Host inventory: Feedback
+确认并记录：
 
-Find and record:
+- 哪些用户可见错误或能力缺口可以触发“是否反馈”。
+- 哪个宿主 surface 会渲染 `Draft.Report()` 的每一个字段。
+- 哪个明确动作代表批准；自然语言总结本身不等于批准。
+- 哪些产品特有 secret、ID、路径形态需要 `AdditionalRedact` 和回归测试。
+- `product/version/os/arch/agent` 的可信来源。
+- 是否接受匿名 per-install linkability；不接受就省略 `InstallID`。
+- `/v1/feedback` endpoint 的配置/禁用方式和 relay 失败后的公开 fallback。
 
-- Where errors and unsupported capabilities become user-visible.
-- Which surface can show the complete final redacted report.
-- Which explicit user action represents approval.
-- How a per-install random ID can be persisted, or whether it should be omitted.
-- Which product/version/OS/arch/agent fields are already trustworthy.
-- Where the relay endpoint is configured and how users can disable feedback.
-- The public fallback issue URL for relay failures.
+禁止采集任意环境变量 map、对话全文、reasoning、tool payload、原始日志、用户/群 ID 或凭证。宿主可以用飞书卡片、文本、CLI 或 Web 呈现，但必须完整显示 `Report`，且只有确认回调才能调用 `Approve(true)`。
 
-Do not submit in the background. A proactive assistant may summarize a problem
-and offer a button, but only the user's explicit action may call `Draft.Approve`.
-Do not capture arbitrary environment variables, conversation transcripts,
-reasoning, tool payloads, filesystem paths, user/chat IDs, or credentials.
+最低宿主测试：
 
-## Host inventory: Updater
+- 未批准时没有网络请求；取消后也没有请求。
+- preview 覆盖所有 outbound fields，随后对 preview 的修改不能改变 approved payload。
+- 默认和产品特有脱敏都生效；stale/future error 不会附到无关报告。
+- endpoint 固定为 v1；失败提示不打印 payload/token，并提供安全 fallback。
 
-Find and record:
+## Updater 盘点
 
-- The single authoritative current-version value.
-- The exact `--version` contract of a released binary.
-- Existing GitHub Release archive/checksum names for every supported platform.
-- The executable path and whether it resolves through a package-manager symlink.
-- Every update entry point (chat, CLI, UI, background discovery).
-- Administrator/privileged gates.
-- Shutdown, restart, and post-restart acknowledgement behavior.
-- Existing beta/nightly channels. Keep them separate from the stable updater.
+确认并记录：
 
-All entry points must call one `updater.Updater`; they may render different
-progress copy, but they must not reimplement release selection or file
-replacement. Do not shell from chat into a text-oriented CLI adapter.
+- 唯一可信的当前版本值和 released binary 的严格、无副作用 version probe。
+- 每个平台的 exact archive/checksum 名和 archive 内 executable name。
+- executable path、权限与安装类型；symlink 通常意味着 package manager，不能走 standalone。
+- 所有入口：聊天、CLI、UI、手动管理操作和后台 discovery。
+- 更新授权规则，以及 shutdown、restart、post-restart acknowledgement。
+- beta/nightly 现有通道；它们必须与 stable updater 分离。
 
-## Required host-level tests
+所有入口应持有同一份 updater 配置。交互入口执行 `Prepare -> render exact Plan -> authorize -> Apply(plan)`；已经完成授权的非交互入口可以执行 `UpdateLatest`。聊天入口不能 shell 到另一个拥有独立策略的 CLI installer。
 
-### Feedback
+最低宿主测试：
 
-- A report cannot be sent without explicit approval.
-- The preview contains every outbound field.
-- Product-specific secret/identifier/path shapes are redacted.
-- A stale error is not attached to an unrelated report.
-- Relay failure produces a safe fallback and no credential leaks.
+- prompt 展示的 tag/asset 与 `Apply` 实际安装完全相同，source 在确认后变更 latest 也不能漂移。
+- prerelease、draft、非法版本、missing/duplicate assets 和 checksum mismatch 均在 mutation 前失败。
+- staged mismatch 不替换；installed mismatch 恢复旧 binary。
+- concurrent entry points 得到 `ErrUpdateInProgress`/`ErrPlanSuperseded` 等明确结果。
+- restart 与 post-restart acknowledgement 作为宿主逻辑单独验证。
 
-### Updater
+## 允许与禁止的适配
 
-- A prerelease returned by the source is rejected.
-- Missing/duplicate checksum or archive assets are rejected before mutation.
-- Checksum mismatch and staged-version mismatch leave the old executable intact.
-- Installed-version mismatch restores the old executable.
-- Concurrent entry points receive `ErrUpdateInProgress`.
-- Successful host restart and acknowledgement are tested separately from the
-  updater core.
+允许：release/archive/binary 命名、严格 version output、UI、权限、配置、翻译、重启、错误 fallback。
 
-## Adaptation boundaries
+禁止放入 core：平台 SDK、宿主仓库名、托管 endpoint、卡片模型、命令 parser、本地化文案、自然语言 intent、restart path 或任意产品分支。
 
-Safe adaptations include asset naming, version-probe output, UI, permissions,
-configuration, translated copy, and restart behavior. Changing any manifest
-invariant is a security-policy change and must be reviewed as such.
-
-For package-manager installs, write a separate installer adapter with the same
-stable and verification contract. The MVP does not claim npm rollback parity.
+package-manager 安装必须有单独 adapter，明确描述 stable selection、post-install version truth 和真实 rollback/recovery；不能把 standalone 的保证写成 npm/Homebrew 的保证。

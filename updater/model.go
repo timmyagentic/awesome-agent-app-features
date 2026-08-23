@@ -9,15 +9,25 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"unicode"
 )
 
 var (
 	// ErrUpdateInProgress is returned when this process or another process
 	// already owns the updater lock for the target executable.
-	ErrUpdateInProgress = errors.New("another update is already in progress")
+	ErrUpdateInProgress error = errors.New("another update is already in progress")
+	// ErrInvalidPlan means Apply received a zero plan or a plan prepared by a
+	// different Updater instance.
+	ErrInvalidPlan error = errors.New("update plan is invalid or belongs to another updater")
+	// ErrPlanSuperseded means a successful later Prepare replaced this plan.
+	ErrPlanSuperseded error = errors.New("update plan was superseded by a newer plan")
+	// ErrPlanConsumed means this exact plan already completed successfully.
+	ErrPlanConsumed error = errors.New("update plan was already applied")
 )
 
-// Asset is one immutable asset attached to a GitHub Release.
+// Asset is one immutable asset attached to a source release.
 type Asset struct {
 	Name        string
 	DownloadURL string
@@ -43,6 +53,11 @@ type Source interface {
 // AssetNameFunc maps a release tag and platform to the exact archive name.
 type AssetNameFunc func(tag, goos, goarch string) string
 
+// BinaryNameFunc maps a release tag and platform to the exact executable file
+// name inside the archive. It exists for projects whose release pipeline puts
+// versioned or platform-qualified binaries in otherwise conventional archives.
+type BinaryNameFunc func(tag, goos, goarch string) string
+
 // VersionVerifier proves that a staged or installed executable identifies as
 // the selected release.
 type VersionVerifier interface {
@@ -61,27 +76,27 @@ func (function VersionVerifierFunc) Verify(ctx context.Context, path, tag string
 type Stage string
 
 const (
-	StageChecking           Stage = "checking"
-	StageUpToDate           Stage = "up_to_date"
-	StageAvailable          Stage = "available"
-	StageDownloadingChecks  Stage = "downloading_checksums"
-	StageDownloadingArchive Stage = "downloading_archive"
-	StageChecksumVerified   Stage = "checksum_verified"
-	StageStagedVerified     Stage = "staged_version_verified"
-	StageInstalling         Stage = "installing"
-	StageInstalledVerified  Stage = "installed_version_verified"
-	StageComplete           Stage = "complete"
+	StageChecking             Stage = "checking"
+	StageUpToDate             Stage = "up_to_date"
+	StageAvailable            Stage = "available"
+	StageDownloadingChecksums Stage = "downloading_checksums"
+	StageDownloadingArchive   Stage = "downloading_archive"
+	StageChecksumVerified     Stage = "checksum_verified"
+	StageStagedVerified       Stage = "staged_version_verified"
+	StageInstalling           Stage = "installing"
+	StageInstalledVerified    Stage = "installed_version_verified"
+	StageComplete             Stage = "complete"
 )
 
 // Event lets a CLI, chat adapter, or UI render progress without owning update
 // policy or file mutation.
 type Event struct {
+	Product        string
 	Stage          Stage
 	CurrentVersion string
 	TargetVersion  string
 	Asset          string
 	Bytes          int64
-	Detail         string
 }
 
 // Config defines a standalone updater transaction.
@@ -90,25 +105,50 @@ type Config struct {
 	CurrentVersion string
 	ExecutablePath string
 	BinaryName     string
-	ChecksumsAsset string
-	AssetName      AssetNameFunc
-	Source         Source
-	Verifier       VersionVerifier
-	LockPath       string
-	PlatformOS     string
-	PlatformArch   string
-	MaxArchiveSize int64
-	MaxBinarySize  int64
-	Progress       func(Event)
+	// ArchiveBinaryName is an optional alternative to the static BinaryName.
+	// Configure exactly one of them.
+	ArchiveBinaryName BinaryNameFunc
+	ChecksumsAsset    string
+	AssetName         AssetNameFunc
+	Source            Source
+	Verifier          VersionVerifier
+	MaxArchiveSize    int64
+	MaxBinarySize     int64
+	Progress          func(Event)
 }
 
-// CheckResult reports the validated stable candidate without mutating files.
-type CheckResult struct {
-	Release   Release
-	Available bool
+// Plan is an opaque, exact update decision returned by Prepare. Its zero value
+// is invalid. Presentation accessors return copies and cannot change what Apply
+// will download or install.
+type Plan struct {
+	state *planState
 }
 
-// Result describes a completed update transaction.
+// Available reports whether the prepared release is newer than the configured
+// current version.
+func (plan Plan) Available() bool {
+	return plan.state != nil && plan.state.available
+}
+
+// Release returns a deep copy of the exact release selected by Prepare.
+func (plan Plan) Release() Release {
+	if plan.state == nil {
+		return Release{}
+	}
+	return cloneRelease(plan.state.release)
+}
+
+// ArchiveAsset returns the exact archive asset selected by Prepare. It is zero
+// when Available reports false.
+func (plan Plan) ArchiveAsset() Asset {
+	if plan.state == nil {
+		return Asset{}
+	}
+	return plan.state.archiveAsset
+}
+
+// Result describes an update transaction. BackupRetainedAt may be populated on
+// either success or failure when recovery evidence still needs operator action.
 type Result struct {
 	Release          Release
 	Updated          bool
@@ -116,10 +156,36 @@ type Result struct {
 	BackupRetainedAt string
 }
 
-// Updater is immutable after construction and safe to keep in a host service.
+// Updater does not reconfigure itself after construction and is safe to keep in
+// a host service when injected Source, Verifier, and Progress implementations
+// are themselves safe for the host's concurrency model.
 type Updater struct {
-	config Config
+	config         Config
+	lockPath       string
+	platformOS     string
+	platformArch   string
+	operation      sync.Mutex
+	planGeneration atomic.Uint64
 }
+
+type planState struct {
+	owner            *Updater
+	generation       uint64
+	status           atomic.Uint32
+	available        bool
+	release          Release
+	archiveAsset     Asset
+	checksumsAsset   Asset
+	archiveName      string
+	binaryName       string
+	expectedChecksum string
+}
+
+const (
+	planReady uint32 = iota
+	planApplying
+	planConsumed
+)
 
 const (
 	defaultMaxArchiveSize = 256 * 1024 * 1024
@@ -128,6 +194,9 @@ const (
 
 // New validates and normalizes a standalone updater configuration.
 func New(config Config) (*Updater, error) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		return nil, fmt.Errorf("standalone updater is supported only on macOS and Linux; use an install-kind adapter")
+	}
 	config.Product = strings.TrimSpace(config.Product)
 	if config.Product == "" {
 		return nil, fmt.Errorf("updater product is required")
@@ -135,6 +204,11 @@ func New(config Config) (*Updater, error) {
 	config.CurrentVersion = strings.TrimSpace(config.CurrentVersion)
 	if config.CurrentVersion == "" {
 		return nil, fmt.Errorf("current version is required")
+	}
+	if !developmentPattern.MatchString(config.CurrentVersion) {
+		if _, err := parseVersion(config.CurrentVersion); err != nil {
+			return nil, fmt.Errorf("current version is invalid: %w", err)
+		}
 	}
 	if config.Source == nil {
 		return nil, fmt.Errorf("release source is required")
@@ -168,25 +242,18 @@ func New(config Config) (*Updater, error) {
 		return nil, fmt.Errorf("current executable is not a regular file")
 	}
 	config.BinaryName = strings.TrimSpace(config.BinaryName)
-	if config.BinaryName == "" || filepath.Base(config.BinaryName) != config.BinaryName || config.BinaryName == "." {
+	if config.ArchiveBinaryName != nil && config.BinaryName != "" {
+		return nil, fmt.Errorf("configure either binary name or archive binary naming function, not both")
+	}
+	if config.ArchiveBinaryName == nil && !validBinaryName(config.BinaryName) {
 		return nil, fmt.Errorf("binary name must be one file name")
 	}
 	if config.ChecksumsAsset == "" {
 		config.ChecksumsAsset = "checksums.txt"
 	}
-	if filepath.Base(config.ChecksumsAsset) != config.ChecksumsAsset {
+	config.ChecksumsAsset = strings.TrimSpace(config.ChecksumsAsset)
+	if !validBinaryName(config.ChecksumsAsset) {
 		return nil, fmt.Errorf("checksums asset must be one file name")
-	}
-	if config.LockPath == "" {
-		config.LockPath = config.ExecutablePath + ".update.lock"
-	} else if !filepath.IsAbs(config.LockPath) {
-		return nil, fmt.Errorf("lock path must be absolute")
-	}
-	if config.PlatformOS == "" {
-		config.PlatformOS = runtime.GOOS
-	}
-	if config.PlatformArch == "" {
-		config.PlatformArch = runtime.GOARCH
 	}
 	if config.MaxArchiveSize <= 0 {
 		config.MaxArchiveSize = defaultMaxArchiveSize
@@ -194,7 +261,12 @@ func New(config Config) (*Updater, error) {
 	if config.MaxBinarySize <= 0 {
 		config.MaxBinarySize = defaultMaxBinarySize
 	}
-	return &Updater{config: config}, nil
+	return &Updater{
+		config:       config,
+		lockPath:     config.ExecutablePath + ".update.lock",
+		platformOS:   runtime.GOOS,
+		platformArch: runtime.GOARCH,
+	}, nil
 }
 
 // ReleaseArchiveName returns the common
@@ -210,8 +282,29 @@ func ReleaseArchiveName(product string) AssetNameFunc {
 	}
 }
 
+func validBinaryName(value string) bool {
+	if value == "" || value == "." || value == ".." || filepath.Base(value) != value || strings.ContainsAny(value, `/\\`) {
+		return false
+	}
+	return !strings.ContainsFunc(value, func(character rune) bool {
+		return unicode.IsSpace(character) || character < 0x20 || character == 0x7f
+	})
+}
+
+func cloneRelease(value Release) Release {
+	clone := value
+	clone.Assets = append([]Asset(nil), value.Assets...)
+	return clone
+}
+
 func (u *Updater) emit(event Event) {
 	if u != nil && u.config.Progress != nil {
+		if event.Product == "" {
+			event.Product = u.config.Product
+		}
+		if event.CurrentVersion == "" {
+			event.CurrentVersion = u.config.CurrentVersion
+		}
 		u.config.Progress(event)
 	}
 }

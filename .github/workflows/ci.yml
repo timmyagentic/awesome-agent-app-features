@@ -8,19 +8,30 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   go:
-    name: Go (${{ matrix.os }})
+    name: Go ${{ matrix.go }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            go: 1.25.x
+          - os: ubuntu-latest
+            go: 1.27.x
+          - os: macos-latest
+            go: 1.27.x
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: "1.23.x"
+          go-version: ${{ matrix.go }}
+          cache: false
       - name: Formatting
         run: test -z "$(gofmt -l .)"
       - name: Tests
@@ -28,21 +39,72 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-  relay:
-    name: Feedback relay
+  contracts:
+    name: API and protocol contracts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          node-version: "22"
+          go-version: 1.27.x
+          cache: false
+      - name: Public API, manifests, and external consumer
+        run: go test ./internal/contract ./compat/v1 ./feedback
+      - name: Unsupported-platform code still compiles for host adapters
+        run: GOOS=windows GOARCH=amd64 go build ./...
+      - name: Module files are tidy
+        run: |
+          go mod tidy
+          test -z "$(git status --porcelain -- go.mod go.sum)"
+      - name: GitHub Actions workflows
+        run: GOWORK=off go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: Static analysis
+        run: GOWORK=off go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+
+  fuzz:
+    name: Fuzz regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: 1.27.x
+          cache: false
+      - run: make fuzz
+
+  security:
+    name: Go vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: 1.27.x
+          cache: false
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+  relay:
+    name: Feedback relay (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22.x, 24.x]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: relay/cloudflare/package-lock.json
-      - name: Install
+      - name: Install locked dependencies without lifecycle scripts
         run: npm ci --prefix relay/cloudflare --ignore-scripts
-      - name: Tests
+      - name: Unit, shared-fixture, and workerd tests
         run: npm test --prefix relay/cloudflare
       - name: Syntax check
         run: npm run check --prefix relay/cloudflare
       - name: Worker dry run
         run: npm run validate:worker --prefix relay/cloudflare
+      - name: Dependency audit
+        run: npm audit --prefix relay/cloudflare --audit-level=high

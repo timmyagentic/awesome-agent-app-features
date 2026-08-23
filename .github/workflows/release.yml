@@ -1,0 +1,78 @@
+name: Publish release (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing annotated SemVer tag to release
+        required: true
+        type: string
+      confirmation:
+        description: Type publish followed by a space and the exact tag
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Verify and publish tagged source
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: 1.27.x
+          cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: relay/cloudflare/package-lock.json
+      - name: Validate immutable release input
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          test "$RELEASE_CONFIRMATION" = "publish $RELEASE_TAG"
+          printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          version=${RELEASE_TAG#v}
+          grep -Eq "^## \\[$version\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md
+          for manifest in features/*/feature.json; do
+            jq -e '.release_status == "released" and (.since | type == "string")' "$manifest" >/dev/null
+          done
+      - name: Complete verification
+        run: |
+          make verify
+          make fuzz
+          go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+      - name: Build deterministic source archive
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          scripts/build-source-release.sh "$RELEASE_TAG" dist
+          scripts/build-source-release.sh "$RELEASE_TAG" "$RUNNER_TEMP/rebuild"
+          cmp dist/*.tar.gz "$RUNNER_TEMP"/rebuild/*.tar.gz
+          cmp dist/checksums.txt "$RUNNER_TEMP/rebuild/checksums.txt"
+      - name: Attest source archive
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: dist/*.tar.gz
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release create "$RELEASE_TAG" dist/*.tar.gz dist/checksums.txt --verify-tag --generate-notes --title "$RELEASE_TAG"

@@ -1,20 +1,21 @@
-# Feedback integration contract
+# Feedback v1 integration contract
 
-Start with `feature.json`, then map each step to the host using
-`docs/agent-integration.md`.
-
-The reusable core has four phases:
+Read `feature.json` first. The reusable flow is:
 
 ```text
-host context -> redacted Draft -> explicit host confirmation -> Approved -> relay
+host context -> Builder -> redacted Draft -> host renders Draft.Report
+                                              -> explicit action
+                                              -> Approved
+                                              -> /v1/feedback HTTPS client
+                                              -> relay-owned downstream adapter
 ```
 
-The host may trigger the flow from a command, a natural-language request, or a
-proactive “report this?” card. Trigger UX can vary; submission consent cannot.
+The host may start this flow from natural language, a command, an error prompt, or a proactive “report this?” card. Trigger UX can vary; explicit submission consent cannot.
 
-Recent errors should have a short relevance window. Capability gaps should be
-deduplicated. Neither becomes a separate report type. The complete final draft,
-including outbound metadata, must be visible before approval.
+Every field in `Draft.Report()` must be visible before approval. `Report` is a deep copy and intentionally fails JSON encoding. The reference HTTP adapter accepts only `Approved`, requires the exact v1 endpoint, and refuses redirects.
 
-Use a persisted random `feedback.NewInstallID()` only if anonymous per-install
-linkability is acceptable for rate limiting. Leaving it empty is supported.
+Recent errors are optional context with a short freshness window. Capability gaps are normalized, sorted, and deduplicated. Neither is a different report type. Default redaction always runs; `AdditionalRedact` can only add product rules.
+
+Cards, buttons, localized text, fallback UX, and intent belong in the host. GitHub title/body/label/repository/token belong in the relay. The core owns neither presentation layer.
+
+Use [Feedback v1](../../docs/protocol-feedback-v1.md) for the exact wire contract and [security.md](../../docs/security.md) for residual risk.

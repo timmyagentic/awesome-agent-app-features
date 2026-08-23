@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/timmyagentic/awesome-agent-app-features/updater"
+	updatergithub "github.com/timmyagentic/awesome-agent-app-features/updater/github"
 )
 
 func main() {
@@ -26,7 +27,7 @@ func main() {
 		ExecutablePath: *executable,
 		BinaryName:     "example-agent",
 		AssetName:      updater.ReleaseArchiveName("example-agent"),
-		Source: updater.GitHubSource{
+		Source: updatergithub.Source{
 			Repository: *repository,
 		},
 		Verifier: updater.ExactVersionLine("example-agent"),
@@ -37,15 +38,16 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	check, err := service.Check(context.Background())
+	plan, err := service.Prepare(context.Background())
 	if err != nil {
 		fatal(err)
 	}
-	if !check.Available {
-		fmt.Printf("Already current at %s.\n", check.Release.Tag)
+	release := plan.Release()
+	if !plan.Available() {
+		fmt.Printf("Already current at %s.\n", release.Tag)
 		return
 	}
-	fmt.Printf("Stable update available: %s (%s)\n", check.Release.Tag, check.Release.URL)
+	fmt.Printf("Stable update available: %s (%s)\n", release.Tag, release.URL)
 	if !*apply {
 		fmt.Println("Check only. Pass -apply to enter the install confirmation flow.")
 		return
@@ -62,7 +64,7 @@ func main() {
 		fmt.Println("Not updated.")
 		return
 	}
-	result, err := service.Update(context.Background())
+	result, err := service.Apply(context.Background(), plan)
 	if err != nil {
 		fatal(err)
 	}

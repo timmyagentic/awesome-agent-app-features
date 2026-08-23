@@ -1,17 +1,23 @@
 {
   "name": "awesome-agent-app-features-feedback-relay",
-  "version": "0.1.0",
+  "version": "0.0.0-unreleased",
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check src/index.js",
-    "test": "node --test",
+    "check": "node --check src/index.js && node --check test/index.test.js && node --check test/schema.test.js && node --check test/runtime.spec.js && node --check vitest.config.js",
+    "test": "npm run test:unit && npm run test:runtime",
+    "test:unit": "node --test test/index.test.js test/schema.test.js",
+    "test:runtime": "vitest run --config vitest.config.js",
     "validate:worker": "wrangler deploy --dry-run --outdir .wrangler/dry-run"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.0.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "vitest": "^4.1.11",
     "wrangler": "4.125.0"
   }
 }

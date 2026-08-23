@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "user_approved": true,
+  "install_id": "install-1",
+  "environment": {
+    "product": "Example Agent",
+    "version": "v1.0.0",
+    "os": "darwin",
+    "arch": "arm64",
+    "agent": "codex"
+  },
+  "description": "Improve startup diagnostics",
+  "recent_error": {
+    "text": "startup returned a redacted failure",
+    "occurred_at": "2026-08-23T09:00:00Z"
+  },
+  "capability_gaps": ["doctor.explain"]
+}

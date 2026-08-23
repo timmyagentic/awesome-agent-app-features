@@ -1,4 +1,6 @@
-package feedback
+// Package httpclient provides a reusable HTTPS adapter for approved feedback
+// reports. It has no knowledge of the relay's downstream issue tracker.
+package httpclient
 
 import (
 	"bytes"
@@ -6,17 +8,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/timmyagentic/awesome-agent-app-features/feedback"
 )
 
-const maxRelayResponseBytes = 64 * 1024
+const (
+	// EndpointPath is the only wire path supported by this v1 client.
+	EndpointPath          = "/v1/feedback"
+	maxRelayResponseBytes = 64 * 1024
+)
 
-// Client sends approved reports to a relay. The GitHub credential belongs in
-// the relay, never in this client.
+// Client sends approved reports to an author-operated relay.
 type Client struct {
 	Endpoint   string
 	HTTPClient *http.Client
@@ -25,43 +33,50 @@ type Client struct {
 
 // Receipt is returned by a successful relay submission.
 type Receipt struct {
-	IssueURL     string `json:"issue_url"`
+	ReferenceURL string `json:"reference_url"`
 	Deduplicated bool   `json:"deduplicated,omitempty"`
 }
 
 // Submit sends an Approved report. It refuses zero-value or unapproved input
 // before making a network request.
-func (c Client) Submit(ctx context.Context, approved Approved) (Receipt, error) {
-	if !approved.valid || !approved.submission.UserApproved {
-		return Receipt{}, ErrApprovalRequired
+func (c Client) Submit(ctx context.Context, approved feedback.Approved) (Receipt, error) {
+	payload, err := json.Marshal(approved)
+	if err != nil {
+		return Receipt{}, fmt.Errorf("encode feedback: %w", err)
 	}
 	endpoint, err := validateEndpoint(c.Endpoint)
 	if err != nil {
 		return Receipt{}, err
-	}
-	payload, err := json.Marshal(approved.submission)
-	if err != nil {
-		return Receipt{}, fmt.Errorf("encode feedback: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(payload))
 	if err != nil {
 		return Receipt{}, fmt.Errorf("create feedback request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 	userAgent := strings.TrimSpace(c.UserAgent)
 	if userAgent == "" {
 		userAgent = "awesome-agent-app-features-feedback/1"
 	}
+	if len(userAgent) > 256 || strings.ContainsFunc(userAgent, func(character rune) bool {
+		return character < 0x20 || character == 0x7f
+	}) {
+		return Receipt{}, fmt.Errorf("feedback user agent is invalid")
+	}
 	req.Header.Set("User-Agent", userAgent)
 
-	client := c.HTTPClient
-	if client == nil {
-		client = &http.Client{
-			Timeout: 10 * time.Second,
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
+	client := http.Client{Timeout: 10 * time.Second}
+	if c.HTTPClient != nil {
+		client = *c.HTTPClient
+		if client.Timeout <= 0 {
+			client.Timeout = 10 * time.Second
 		}
+	}
+	// A feedback POST is approved for exactly the configured endpoint. Preserve
+	// custom transports and timeouts, but never inherit a redirect policy that
+	// can replay the body to a different destination.
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -78,13 +93,21 @@ func (c Client) Submit(ctx context.Context, approved Approved) (Receipt, error) 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return Receipt{}, fmt.Errorf("relay returned HTTP %d", resp.StatusCode)
 	}
+	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		return Receipt{}, fmt.Errorf("relay returned a non-JSON response")
+	}
 	var receipt Receipt
 	if err := json.Unmarshal(body, &receipt); err != nil {
 		return Receipt{}, fmt.Errorf("decode relay response: %w", err)
 	}
-	issueURL, err := url.Parse(receipt.IssueURL)
-	if err != nil || issueURL.Host == "" || (issueURL.Scheme != "https" && !(issueURL.Scheme == "http" && isLoopbackHost(issueURL.Hostname()))) {
-		return Receipt{}, fmt.Errorf("relay returned an invalid issue URL")
+	if receipt.ReferenceURL != strings.TrimSpace(receipt.ReferenceURL) {
+		return Receipt{}, fmt.Errorf("relay returned an invalid reference URL")
+	}
+	referenceURL, err := url.Parse(receipt.ReferenceURL)
+	if err != nil || referenceURL.Host == "" || referenceURL.User != nil || referenceURL.Fragment != "" ||
+		(referenceURL.Scheme != "https" && !(referenceURL.Scheme == "http" && isLoopbackHost(referenceURL.Hostname()))) {
+		return Receipt{}, fmt.Errorf("relay returned an invalid reference URL")
 	}
 	return receipt, nil
 }
@@ -94,8 +117,11 @@ func validateEndpoint(raw string) (*url.URL, error) {
 	if err != nil || endpoint.Host == "" {
 		return nil, fmt.Errorf("feedback endpoint is invalid")
 	}
-	if endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
+	if endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.Opaque != "" {
 		return nil, fmt.Errorf("feedback endpoint must not contain credentials, query parameters, or fragments")
+	}
+	if endpoint.EscapedPath() != EndpointPath {
+		return nil, fmt.Errorf("feedback endpoint path must be %s", EndpointPath)
 	}
 	if endpoint.Scheme == "https" {
 		return endpoint, nil

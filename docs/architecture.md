@@ -1,42 +1,82 @@
-# Architecture
+# Feature foundation architecture
 
-The project separates three layers so products can vary without duplicating
-security policy.
+This repository is a headless feature foundation, not a product framework. A coding agent maps stable cores and generic infrastructure adapters into a host repository; the host keeps every product and channel decision.
 
 ```text
-host UI / chat / CLI
-        |
-        v
-thin product adapter
-        |
-        +---- feedback core ---- HTTPS ---- self-hosted relay ---- GitHub Issues
-        |
-        +---- updater core ----- GitHub Release assets ----- executable
+host product
+  intent / authorization / cards / CLI / web / i18n / lifecycle
+                              |
+                       thin host adapter
+                              |
+                  structured values + events
+                              |
+              reusable feature foundation v1
+              core ports     generic adapters
 ```
+
+## Ownership
+
+| Foundation | Host |
+| --- | --- |
+| Provider-neutral data, opaque state, sentinel errors | Product flow, user-facing copy, cards, buttons, commands |
+| Security policy and deterministic transactions | Intent detection, administrator policy, configuration UX |
+| HTTP, GitHub Release, and filesystem adapters | Install-kind selection, restart, acknowledgement |
+| Neutral progress events and structured results | Channel SDKs, localization, analytics, support workflow |
+| Manifests, examples, shared fixtures, API/consumer gates | Glue code and host-specific regression/E2E tests |
+
+A Feishu card or terminal prompt is always a host renderer. A GitHub release source or HTTPS transport can live here because it implements a provider port without choosing the host experience.
+
+## Dependency direction
+
+```text
+host adapter -> feedback             host adapter -> updater
+             -> feedback/httpclient               -> updater/github
+                                                        |
+relay/cloudflare -> Feedback v1 protocol               v
+                                             Source port in updater core
+```
+
+Core packages import only the Go standard library. `feedback` knows nothing about HTTP or GitHub. `updater` knows nothing about GitHub. Infrastructure adapters depend inward on their core; no core depends outward on an adapter or host.
 
 ## Feedback boundary
 
-The host supplies a fixed allowlist of environment facts plus optional user
-description, fresh error, and capability gaps. `Builder` redacts and bounds the
-report. The host renders the complete draft and records a user decision.
-`Client` accepts only the opaque `Approved` type.
+```text
+host-selected context
+  -> Builder (allowlist + default/additional redaction + bounds + freshness)
+  -> Draft
+  -> Report deep copy rendered by the host
+  -> explicit user action
+  -> opaque Approved
+  -> /v1/feedback HTTPS adapter
+  -> strict single-tenant relay
+  -> relay-owned GitHub rendering/destination
+```
 
-The relay is intentionally single tenant. Its GitHub token and repository live
-server-side. The wire payload cannot select a repository. GitHub search-based
-deduplication is best effort and not part of submission correctness.
+`Report` deliberately fails JSON encoding. Only `Approved` emits schema 1 JSON. The host owns the preview and action; the relay owns issue title/body/label/repository. Shared Go and Worker fixtures freeze the boundary.
 
 ## Updater boundary
 
-`Source` owns release metadata and asset bytes. `Updater` owns the complete
-installation transaction. UI adapters receive progress events only.
+```text
+Source.LatestStable
+  -> Prepare validates stable metadata and exact assets
+  -> Prepare downloads and pins the same-release SHA-256
+  -> opaque Plan rendered/authorized by the host
+  -> Apply exact Plan (no second latest lookup)
+  -> lock, archive, checksum, staged verify, backup, replace,
+     installed verify, cleanup or rollback
+```
 
-The selected release is revalidated as an exact stable version. Archive and
-checksum names are looked up exactly on that same release object. The updater
-downloads with size bounds, verifies SHA-256, extracts only one configured
-binary into the target directory, verifies it, backs up the installed binary,
-renames the staged binary into place, verifies again, and rolls back on failure.
+The host owns discovery cadence, authorization, install-kind routing, progress copy, restart, and post-restart confirmation. `updater/github` owns GitHub API/URL/redirect rules. The core owns only the standalone transaction.
 
-An in-process gate plus a target lock serializes callers. Unix builds use an
-advisory file lock, which is automatically released after process death. The
-non-Unix fallback uses an exclusive lock file; Windows replacement is not an
-MVP guarantee.
+## Agent integration plane
+
+Agent-friendly does not mean a Codex Skill or blind installer. It means an agent has enough executable information to adapt the feature safely:
+
+- `features/*/feature.json` declares ownership, prerequisites, invariants, and commands.
+- Feature READMEs describe the low-level contract.
+- `docs/agent-integration.md` defines the host inventory and mapping process.
+- Examples compile the intended public API.
+- `api/v1.txt` and `compat/v1` prevent accidental public drift.
+- Host tests prove the last-mile adapter retained every invariant.
+
+The architecture test rejects channel/product terms and third-party imports in core source files. This is a guardrail; an architectural boundary change still requires human review.

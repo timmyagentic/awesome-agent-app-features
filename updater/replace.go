@@ -21,21 +21,34 @@ func replaceExecutable(target, staged string, verify func(string) error) (string
 	}
 
 	backup := target + ".update-backup"
-	if err := os.Rename(target, backup); err != nil {
+	// A hard link is an atomic no-clobber backup on the target filesystem. In
+	// contrast, os.Rename(target, backup) can silently replace a recovery file
+	// that appears between preflight and this operation on Unix.
+	if err := os.Link(target, backup); err != nil {
 		return "", fmt.Errorf("create update backup: %w", err)
 	}
+	backupInfo, backupErr := os.Lstat(backup)
+	targetInfo, targetErr := os.Lstat(target)
+	if backupErr != nil || targetErr != nil || !backupInfo.Mode().IsRegular() ||
+		targetInfo.Mode()&os.ModeSymlink != 0 || !targetInfo.Mode().IsRegular() ||
+		!os.SameFile(backupInfo, targetInfo) {
+		if removeErr := os.Remove(backup); removeErr != nil {
+			return backup, fmt.Errorf("validate update backup failed and backup cleanup failed at %s: %v", backup, removeErr)
+		}
+		return "", fmt.Errorf("validate update backup: target changed before installation")
+	}
 	if err := syncDirectory(filepath.Dir(target)); err != nil {
-		return "", rollbackExecutable(target, backup, "sync update backup", err)
+		return rollbackExecutable(target, backup, "sync update backup", err)
 	}
 	if err := os.Rename(staged, target); err != nil {
-		return "", rollbackExecutable(target, backup, "install staged binary", err)
+		return rollbackExecutable(target, backup, "install staged binary", err)
 	}
 	if err := syncDirectory(filepath.Dir(target)); err != nil {
-		return "", rollbackExecutable(target, backup, "sync installed binary", err)
+		return rollbackExecutable(target, backup, "sync installed binary", err)
 	}
 	if verify != nil {
 		if err := verify(target); err != nil {
-			return "", rollbackExecutable(target, backup, "verify installed binary", err)
+			return rollbackExecutable(target, backup, "verify installed binary", err)
 		}
 	}
 	if err := os.Remove(backup); err != nil {
@@ -48,9 +61,12 @@ func replaceExecutable(target, staged string, verify func(string) error) (string
 }
 
 func preflightReplacement(target string) error {
-	targetInfo, err := os.Stat(target)
+	targetInfo, err := os.Lstat(target)
 	if err != nil {
 		return fmt.Errorf("inspect current executable: %w", err)
+	}
+	if targetInfo.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("standalone updater refuses a symlink executable path")
 	}
 	if !targetInfo.Mode().IsRegular() {
 		return fmt.Errorf("current executable is not a regular file")
@@ -73,23 +89,35 @@ func prepareStagedExecutable(target, staged string) error {
 	if mode == 0 {
 		mode = 0o755
 	}
+	stagedFile, err := os.OpenFile(staged, os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("open staged binary for metadata sync: %w", err)
+	}
 	if err := os.Chmod(staged, mode); err != nil {
+		_ = stagedFile.Close()
 		return fmt.Errorf("apply executable mode to staged binary: %w", err)
+	}
+	if err := stagedFile.Sync(); err != nil {
+		_ = stagedFile.Close()
+		return fmt.Errorf("sync staged binary metadata: %w", err)
+	}
+	if err := stagedFile.Close(); err != nil {
+		return fmt.Errorf("close staged binary after metadata sync: %w", err)
 	}
 	return nil
 }
 
-func rollbackExecutable(target, backup, action string, updateErr error) error {
+func rollbackExecutable(target, backup, action string, updateErr error) (string, error) {
 	if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("%s: %w; rollback failed to remove new binary: %v; backup remains at %s", action, updateErr, err, backup)
+		return backup, fmt.Errorf("%s: %w; rollback failed to remove new binary: %v; backup remains at %s", action, updateErr, err, backup)
 	}
 	if err := os.Rename(backup, target); err != nil {
-		return fmt.Errorf("%s: %w; rollback failed: %v; backup remains at %s", action, updateErr, err, backup)
+		return backup, fmt.Errorf("%s: %w; rollback failed: %v; backup remains at %s", action, updateErr, err, backup)
 	}
 	if err := syncDirectory(filepath.Dir(target)); err != nil {
-		return fmt.Errorf("%s: %w; rollback restored the executable but directory sync failed: %v", action, updateErr, err)
+		return "", fmt.Errorf("%s: %w; rollback restored the executable but directory sync failed: %v", action, updateErr, err)
 	}
-	return fmt.Errorf("%s: %w (rolled back)", action, updateErr)
+	return "", fmt.Errorf("%s: %w (rolled back)", action, updateErr)
 }
 
 func syncDirectory(directory string) error {

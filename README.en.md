@@ -1,33 +1,35 @@
 # Awesome Agent App Features
 
-[中文](README.md) · [Agent integration guide](docs/agent-integration.md) · [Security model](docs/security.md)
+[中文](README.md) · [Agent integration](docs/agent-integration.md) · [Compatibility](COMPATIBILITY.md) · [Security](docs/security.md)
 
-Reusable product-feature code for agent applications. Give this repository to a coding agent and it can adapt proven Feedback and safe-update mechanisms to your codebase.
+Headless feature-foundation code for agent applications. Give this repository and the target project to a coding agent: it first understands the host architecture, then integrates the reliable low-level capability. Cards, commands, authorization, localization, restart behavior, and product flow remain in the host.
 
-This is not an awesome link list or a Codex Skills collection. It ships runnable packages, explicit security invariants, machine-readable feature manifests, integration steps, and regression tests.
+This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The currently unreleased `v1` contract stabilizes three integration outcomes:
 
-## MVP contents
-
-| Feature | Problem solved | Current implementation |
+| Capability | This repository provides | The host product provides |
 | --- | --- | --- |
-| Feedback | Submit redacted in-product feedback without shipping a GitHub token to clients | Go draft/redaction/approval/client package plus a single-tenant Cloudflare GitHub relay |
-| Updater | Give chat, CLI, and UI adapters one trusted stable update transaction | Go standalone updater with stable-only selection, same-release checksums, two version checks, cross-process locking, and rollback |
+| Agent-friendly integration | Machine-readable manifests, boundaries, examples, API/consumer contracts, and verification commands | Glue code fitted to the existing architecture plus host tests |
+| Feedback | Redacted `Draft`, non-serializable preview, explicit `Approved`, Feedback v1 HTTPS client, single-tenant Cloudflare relay | Trigger timing, Feishu/Slack/CLI/web rendering, confirmation, and failure UX |
+| Updater | Immutable exact plan, stable-only selection, same-release checksum, two version checks, locks, no-clobber backup, and rollback | Update prompt, authorization, install-kind detection, restart, and acknowledgement |
 
-The MVP targets Go-based agent CLIs and daemons. In-place replacement is currently promised only on macOS and Linux. The host still owns cards, buttons, natural-language intent, administrator gates, localization, restart behavior, and final UI.
+## Current integration status
 
-## Fastest path: give it to an agent
+No version has been published yet. To evaluate the current v1 contract, use Go 1.25 or newer and pin an exact reviewed commit SHA rather than floating `main`:
 
-```text
-Read https://github.com/timmyagentic/awesome-agent-app-features .
-Inspect my existing architecture first, then integrate Feedback and Updater by
-following features/feedback/feature.json and features/updater/feature.json.
-Preserve every invariant, adapt the UI, permissions, version output, and release
-asset naming to my project, and run each feature's verification commands.
+```bash
+go get github.com/timmyagentic/awesome-agent-app-features@FULL_REVIEWED_COMMIT_SHA
 ```
 
-The agent should inventory the existing feedback entry points, version source, release assets, authorization, and restart lifecycle before editing. See [docs/agent-integration.md](docs/agent-integration.md).
+The supported v1 packages are:
 
-## Feedback core
+```text
+feedback
+feedback/httpclient
+updater
+updater/github
+```
+
+## Feedback
 
 ```go
 draft, err := (feedback.Builder{}).Build(feedback.Input{
@@ -42,8 +44,8 @@ if err != nil {
     return err
 }
 
-showToUser(draft.Preview()) // or an equivalent complete rendering
-if !userClickedSubmit() {
+renderEveryField(draft.Report()) // host-owned card, text, CLI, or web UI
+if !userExplicitlyConfirmed() {
     return nil
 }
 
@@ -51,14 +53,14 @@ approved, err := draft.Approve(true)
 if err != nil {
     return err
 }
-receipt, err := (feedback.Client{
-    Endpoint: "https://your-relay.example/v1/feedback",
+receipt, err := (httpclient.Client{
+    Endpoint: "https://feedback.example/v1/feedback",
 }).Submit(ctx, approved)
 ```
 
-Only `Approved` values can enter the client submission API, and the relay independently requires `user_approved: true`. Automatically captured environment fields are a fixed allowlist, never an arbitrary environment map. See [relay/cloudflare](relay/cloudflare/README.md).
+`Report` is a deep copy and standard JSON encoding returns `ErrApprovalRequired`; only opaque `Approved` emits a schema 1 wire payload. The core creates no issue title, Markdown body, card, or copy. The reference relay fixes the GitHub repository and token server-side, so a client cannot choose the destination. Shared protocol fixtures live in [protocol/feedback/v1](protocol/feedback/v1).
 
-## Updater core
+## Updater
 
 ```go
 service, err := updater.New(updater.Config{
@@ -67,7 +69,7 @@ service, err := updater.New(updater.Config{
     ExecutablePath: executablePath,
     BinaryName:     "my-agent-app",
     AssetName:      updater.ReleaseArchiveName("my-agent-app"),
-    Source: updater.GitHubSource{
+    Source: updatergithub.Source{
         Repository: "owner/my-agent-app",
     },
     Verifier: updater.ExactVersionLine("my-agent-app"),
@@ -77,59 +79,64 @@ if err != nil {
     return err
 }
 
-result, err := service.Update(ctx)
+plan, err := service.Prepare(ctx)
+if err != nil || !plan.Available() {
+    return err
+}
+renderExactUpdate(plan.Release(), plan.ArchiveAsset())
+if !userExplicitlyConfirmed() {
+    return nil
+}
+result, err := service.Apply(ctx, plan)
 ```
 
-Default release asset convention:
+Import both `updater` and `updater/github`. `Prepare` pins the release, archive, archive binary name, and checksum. `Apply` executes only that plan and never resolves latest again. A later successful `Prepare` makes an older plan return `ErrPlanSuperseded`. An already-authorized, non-interactive CLI or administrator action may use `UpdateLatest`.
+
+The default archive name is `<product>-<tag>-<os>-<arch>.tar.gz` (zip on Windows), with `checksums.txt` as the default manifest. Use `ArchiveBinaryName` when the binary inside the archive changes by tag or platform. In-place standalone replacement is supported on macOS/Linux and rejects symlink executables. npm, Homebrew, and Windows require host-owned install adapters.
+
+## Prompt for a coding agent
 
 ```text
-my-agent-app-v1.2.3-darwin-arm64.tar.gz
-my-agent-app-v1.2.3-linux-amd64.tar.gz
-my-agent-app-v1.2.3-windows-amd64.zip
-checksums.txt
+No version is published yet. Pin a reviewed full commit SHA; do not use main,
+a local replace, or another floating reference. Move to the immutable v1 tag
+only after it is formally published.
+Read features/<feature>/feature.json, its README, and
+docs/agent-integration.md. Inventory my existing UI, authorization, version
+truth, release assets, install kind, and restart lifecycle before editing.
+Reuse the foundation core/adapters, implement presentation and product flow in
+the host, preserve every invariant, and run both verification suites.
 ```
 
-You may replace `AssetName` and `VersionVerifier`, but not this order: exact stable release → exact assets on that release → SHA-256 → staged version → backup/replace → installed version → rollback on failure.
-
-## Repository layout
-
-```text
-feedback/               Go Feedback core
-updater/                Go stable-only standalone updater
-relay/cloudflare/       Self-hosted single-tenant GitHub issue relay
-features/*/feature.json Agent-readable integration contracts
-examples/               Minimal compiling integrations
-docs/                   Architecture, security, and agent guidance
-```
+A host Feishu card is only a renderer for `Report`, `Plan`, or `Event`; it does not belong in this repository. See [docs/architecture.md](docs/architecture.md) for the ownership model.
 
 ## Security boundaries
 
-- Clients never hold the GitHub token or choose the relay's destination repository.
-- Feedback has one shape; errors and capability gaps are user-approved context.
-- Ordinary updates never select beta/rc releases; tags must exactly match `v?X.Y.Z`.
-- The checksum manifest and archive must be exact assets on the selected Release.
-- A checksum protects download integrity, not release-publisher identity. High-risk products should extend `Source` or their release pipeline with signatures/provenance.
-- An existing `.update-backup` is never overwritten.
+- Feedback is never sent in the background; `Approved` must follow an explicit user action.
+- Default redaction, fixed environment allowlists, and UTF-8 byte limits are enforced in both Go and the relay.
+- Ordinary updates accept only exact `v?X.Y.Z` stable tags; drafts, prereleases, and leading-zero versions fail closed.
+- The checksum is pinned during `Prepare`; the archive is verified before extraction, execution, or replacement.
+- Both staged and installed binaries must report the exact target version, otherwise mutation is refused or rolled back.
+- Lock-file symlinks, executable symlinks, and existing recovery backups fail closed.
+- A checksum proves content consistency, not publisher identity; high-risk products still need an independent signature or provenance root.
 
-See [docs/security.md](docs/security.md) for the full threat model.
+## Layout and gates
 
-## Current boundary
-
-This MVP does not include npm rollback, a multi-tenant feedback SaaS, dashboard, accounts, guaranteed Windows in-place replacement, package publication, or a hosted relay. No Go module tag is published yet; pin an audited commit when integrating.
-
-The standalone updater refuses symlink executable paths. npm, Homebrew, and other package-manager installs need explicit install-kind detection plus a dedicated host adapter.
-
-## Verify
-
-```bash
-gofmt -l .
-go test -race ./...
-go vet ./...
-npm test --prefix relay/cloudflare
-npm run check --prefix relay/cloudflare
-npm run validate:worker --prefix relay/cloudflare
+```text
+api/v1.txt                    v1 public API snapshot
+compat/v1                     external-consumer compile contract
+features/*                    agent-readable integration manifests
+feedback/                     provider-neutral Feedback core
+feedback/httpclient/          Feedback v1 HTTPS adapter
+protocol/feedback/v1/         JSON Schema and shared Go/JS fixtures
+updater/                      stable standalone transaction core
+updater/github/               GitHub Releases source adapter
+relay/cloudflare/             runnable single-tenant GitHub Issues relay
 ```
 
-The project was extracted from the proven Feedback and unified updater paths in [CC Connect Next](https://github.com/timmyagentic/cc-connect-next), with Feishu, chat-command, CLI-copy, and repository-specific release policy removed.
+```bash
+make verify
+```
 
-MIT License
+Once published, `v1` follows SemVer. Rules for public APIs, wire protocols, and manifest invariants are in [COMPATIBILITY.md](COMPATIBILITY.md).
+
+This project was extracted from the Feedback and unified updater paths in [CC Connect Next](https://github.com/timmyagentic/cc-connect-next), retaining only the reusable foundation. MIT License.

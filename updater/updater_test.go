@@ -11,8 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -96,14 +94,14 @@ func newUpdateHarness(t *testing.T, verifier VersionVerifier) updateHarness {
 			}
 			return archiveName
 		},
-		Source:       source,
-		Verifier:     verifier,
-		PlatformOS:   "darwin",
-		PlatformArch: "arm64",
+		Source:   source,
+		Verifier: verifier,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	instance.platformOS = "darwin"
+	instance.platformArch = "arm64"
 	return updateHarness{
 		updater:     instance,
 		source:      source,
@@ -134,7 +132,7 @@ func TestUpdateVerifiesChecksumStagedAndInstalledBinary(t *testing.T) {
 		stages = append(stages, event.Stage)
 	}
 
-	result, err := harness.updater.Update(context.Background())
+	result, err := harness.updater.UpdateLatest(context.Background())
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
@@ -150,8 +148,8 @@ func TestUpdateVerifiesChecksumStagedAndInstalledBinary(t *testing.T) {
 	}
 	wantStages := []Stage{
 		StageChecking,
+		StageDownloadingChecksums,
 		StageAvailable,
-		StageDownloadingChecks,
 		StageDownloadingArchive,
 		StageChecksumVerified,
 		StageStagedVerified,
@@ -173,7 +171,7 @@ func TestUpdateRefusesPrereleaseBeforeDownload(t *testing.T) {
 	}))
 	harness.source.release.Tag = "v1.2.3-beta.1"
 	harness.source.release.Prerelease = true
-	_, err := harness.updater.Update(context.Background())
+	_, err := harness.updater.UpdateLatest(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "non-stable") {
 		t.Fatalf("Update error = %v", err)
 	}
@@ -190,7 +188,7 @@ func TestUpdateRefusesChecksumMismatchBeforeVersionOrMutation(t *testing.T) {
 		return nil
 	}))
 	harness.source.data["checksums.txt"] = []byte(strings.Repeat("0", 64) + "  " + harness.archiveName + "\n")
-	_, err := harness.updater.Update(context.Background())
+	_, err := harness.updater.UpdateLatest(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("Update error = %v", err)
 	}
@@ -206,7 +204,7 @@ func TestUpdateRefusesStagedVersionBeforeMutation(t *testing.T) {
 		verifierCalls++
 		return fmt.Errorf("simulated staged version mismatch")
 	}))
-	_, err := harness.updater.Update(context.Background())
+	_, err := harness.updater.UpdateLatest(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "verify staged binary") {
 		t.Fatalf("Update error = %v", err)
 	}
@@ -219,6 +217,17 @@ func TestUpdateRefusesStagedVersionBeforeMutation(t *testing.T) {
 	}
 }
 
+func TestUpdateRejectsVersionProbeThatModifiesStagedBinary(t *testing.T) {
+	harness := newUpdateHarness(t, VersionVerifierFunc(func(_ context.Context, path, _ string) error {
+		return os.WriteFile(path, []byte("probe-mutated binary"), 0o755)
+	}))
+	_, err := harness.updater.UpdateLatest(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "staged version probe modified") {
+		t.Fatalf("Update error = %v", err)
+	}
+	assertContent(t, harness.target, "old binary")
+}
+
 func TestUpdateRollsBackInstalledVersionMismatch(t *testing.T) {
 	var verifierCalls int
 	harness := newUpdateHarness(t, VersionVerifierFunc(func(context.Context, string, string) error {
@@ -228,7 +237,7 @@ func TestUpdateRollsBackInstalledVersionMismatch(t *testing.T) {
 		}
 		return nil
 	}))
-	_, err := harness.updater.Update(context.Background())
+	_, err := harness.updater.UpdateLatest(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "rolled back") {
 		t.Fatalf("Update error = %v", err)
 	}
@@ -241,6 +250,53 @@ func TestUpdateRollsBackInstalledVersionMismatch(t *testing.T) {
 	}
 }
 
+func TestUpdateRollsBackVersionProbeThatModifiesInstalledBinary(t *testing.T) {
+	var verifierCalls int
+	harness := newUpdateHarness(t, VersionVerifierFunc(func(_ context.Context, path, _ string) error {
+		verifierCalls++
+		if verifierCalls == 2 {
+			return os.WriteFile(path, []byte("probe-mutated binary"), 0o755)
+		}
+		return nil
+	}))
+	_, err := harness.updater.UpdateLatest(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "installed version probe modified") || !strings.Contains(err.Error(), "rolled back") {
+		t.Fatalf("Update error = %v", err)
+	}
+	assertContent(t, harness.target, "old binary")
+}
+
+func TestUpdateReturnsStructuredBackupWhenRollbackCannotFinish(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permission fixture is Unix-only")
+	}
+	var verifierCalls int
+	harness := newUpdateHarness(t, VersionVerifierFunc(func(_ context.Context, path, _ string) error {
+		verifierCalls++
+		if verifierCalls == 2 {
+			if err := os.Chmod(filepath.Dir(path), 0o500); err != nil {
+				return err
+			}
+			return fmt.Errorf("simulated installed version mismatch")
+		}
+		return nil
+	}))
+	directory := filepath.Dir(harness.target)
+	defer os.Chmod(directory, 0o700)
+	result, err := harness.updater.UpdateLatest(context.Background())
+	if restoreErr := os.Chmod(directory, 0o700); restoreErr != nil {
+		t.Fatalf("restore fixture permissions: %v", restoreErr)
+	}
+	if err == nil || !strings.Contains(err.Error(), "rollback failed") {
+		t.Fatalf("Update error = %v", err)
+	}
+	wantBackup := harness.target + ".update-backup"
+	if result.BackupRetainedAt != wantBackup {
+		t.Fatalf("BackupRetainedAt = %q, want %q", result.BackupRetainedAt, wantBackup)
+	}
+	assertContent(t, wantBackup, "old binary")
+}
+
 func TestUpdateRefusesExistingRecoveryBackup(t *testing.T) {
 	var verifierCalls int
 	harness := newUpdateHarness(t, VersionVerifierFunc(func(context.Context, string, string) error {
@@ -251,7 +307,7 @@ func TestUpdateRefusesExistingRecoveryBackup(t *testing.T) {
 	if err := os.WriteFile(backup, []byte("important prior backup"), 0o755); err != nil {
 		t.Fatalf("write backup: %v", err)
 	}
-	_, err := harness.updater.Update(context.Background())
+	_, err := harness.updater.UpdateLatest(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "refusing to overwrite existing update backup") {
 		t.Fatalf("Update error = %v", err)
 	}
@@ -271,22 +327,28 @@ func TestUpdateReturnsDeterministicBusyForConcurrentCaller(t *testing.T) {
 	harness := newUpdateHarness(t, VersionVerifierFunc(func(context.Context, string, string) error {
 		return nil
 	}))
-	harness.source.latest = func(context.Context) (Release, error) {
+	plan, err := harness.updater.Prepare(context.Background())
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	harness.source.beforeDownload = func(asset Asset) {
+		if asset.Name != harness.archiveName {
+			return
+		}
 		select {
 		case <-started:
 		default:
 			close(started)
 		}
 		<-release
-		return harness.source.release, nil
 	}
 	firstDone := make(chan error, 1)
 	go func() {
-		_, err := harness.updater.Update(context.Background())
+		_, err := harness.updater.Apply(context.Background(), plan)
 		firstDone <- err
 	}()
 	<-started
-	_, err := harness.updater.Update(context.Background())
+	_, err = harness.updater.Apply(context.Background(), plan)
 	if !errors.Is(err, ErrUpdateInProgress) {
 		t.Fatalf("concurrent error = %v", err)
 	}
@@ -300,12 +362,12 @@ func TestUpdateHonorsPlatformFileLock(t *testing.T) {
 	harness := newUpdateHarness(t, VersionVerifierFunc(func(context.Context, string, string) error {
 		return nil
 	}))
-	held, err := tryPlatformLock(harness.updater.config.LockPath)
+	held, err := tryPlatformLock(harness.updater.lockPath)
 	if err != nil {
 		t.Fatalf("tryPlatformLock: %v", err)
 	}
 	defer held.release()
-	_, err = harness.updater.Update(context.Background())
+	_, err = harness.updater.UpdateLatest(context.Background())
 	if !errors.Is(err, ErrUpdateInProgress) {
 		t.Fatalf("file-lock error = %v", err)
 	}
@@ -316,15 +378,15 @@ func TestCheckReportsUpToDateWithoutDownload(t *testing.T) {
 		return nil
 	}))
 	harness.updater.config.CurrentVersion = "v1.2.3"
-	result, err := harness.updater.Check(context.Background())
+	result, err := harness.updater.Prepare(context.Background())
 	if err != nil {
-		t.Fatalf("Check: %v", err)
+		t.Fatalf("Prepare: %v", err)
 	}
-	if result.Available {
-		t.Fatalf("result = %+v", result)
+	if result.Available() {
+		t.Fatalf("plan = %+v", result.Release())
 	}
 	if len(harness.source.downloads) != 0 {
-		t.Fatalf("Check downloaded assets: %v", harness.source.downloads)
+		t.Fatalf("Prepare downloaded assets for up-to-date release: %v", harness.source.downloads)
 	}
 }
 
@@ -333,7 +395,7 @@ func TestUpdateRequiresExactAssetsFromSelectedRelease(t *testing.T) {
 		return nil
 	}))
 	harness.source.release.Assets[0].Name = harness.archiveName + ".other"
-	_, err := harness.updater.Update(context.Background())
+	_, err := harness.updater.UpdateLatest(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "does not contain exact asset") {
 		t.Fatalf("Update error = %v", err)
 	}
@@ -347,7 +409,7 @@ func TestUpdateEnforcesDeclaredAndStreamingAssetLimits(t *testing.T) {
 		return nil
 	}))
 	harness.updater.config.MaxArchiveSize = int64(len(harness.archive) - 1)
-	_, err := harness.updater.Update(context.Background())
+	_, err := harness.updater.UpdateLatest(context.Background())
 	if !errors.Is(err, errAssetTooLarge) {
 		t.Fatalf("declared-size error = %v", err)
 	}
@@ -357,7 +419,7 @@ func TestUpdateEnforcesDeclaredAndStreamingAssetLimits(t *testing.T) {
 	}))
 	harness.updater.config.MaxArchiveSize = int64(len(harness.archive) - 1)
 	harness.source.release.Assets[0].Size = 0
-	_, err = harness.updater.Update(context.Background())
+	_, err = harness.updater.UpdateLatest(context.Background())
 	if !errors.Is(err, errAssetTooLarge) {
 		t.Fatalf("stream-size error = %v", err)
 	}
@@ -370,6 +432,7 @@ func TestValidateStableReleaseAndVersionComparison(t *testing.T) {
 		{Tag: "v1.2.3", Draft: true},
 		{Tag: " v1.2.3"},
 		{Tag: "v1.2"},
+		{Tag: "v01.2.3"},
 	} {
 		if err := ValidateStableRelease(release); err == nil {
 			t.Fatalf("accepted release %+v", release)
@@ -387,6 +450,7 @@ func TestValidateStableReleaseAndVersionComparison(t *testing.T) {
 		{"v1.2.3", "v1.2.3", false},
 		{"v1.2.3", "v1.2.4", false},
 		{"v1.2.3", "v1.2.3-beta.2", true},
+		{"v1.2.3", "v1.2.3+build.7", false},
 		{"v1.2.3", "dev", true},
 	} {
 		got, err := IsNewerStable(item.candidate, item.current)
@@ -396,6 +460,9 @@ func TestValidateStableReleaseAndVersionComparison(t *testing.T) {
 	}
 	if _, err := IsNewerStable("v1.2.3", "unknown"); err == nil {
 		t.Fatal("accepted unknown current version")
+	}
+	if _, err := IsNewerStable("v1.2.3", "v1.2.2-01"); err == nil {
+		t.Fatal("accepted invalid prerelease numeric identifier")
 	}
 }
 
@@ -433,58 +500,19 @@ func TestArchiveExtractionSupportsZipAndRejectsTraversalOnlyEntry(t *testing.T) 
 	if _, err := extractBinary(unsafePath, "unsafe.zip", "example-agent", directory, 1024); err == nil {
 		t.Fatal("accepted traversal-only archive entry")
 	}
-}
 
-func TestGitHubSourceValidatesLatestRelease(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/repos/owner/repository/releases/latest" {
-			http.NotFound(writer, request)
-			return
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{
-          "tag_name":"v1.2.3",
-          "html_url":"https://github.com/owner/repository/releases/tag/v1.2.3",
-          "draft":false,
-          "prerelease":false,
-          "assets":[{
-            "name":"checksums.txt",
-            "browser_download_url":"https://github.com/owner/repository/releases/download/v1.2.3/checksums.txt",
-            "size":64
-          }]
-        }`))
-	}))
-	defer server.Close()
-	source := GitHubSource{
-		Repository: " owner/repository ",
-		APIBase:    server.URL,
-		Client:     server.Client(),
+	symlinkPath := filepath.Join(directory, "symlink.zip")
+	writeZipSymlink(t, symlinkPath, "example-agent", "bin/example-agent")
+	if _, err := extractBinary(symlinkPath, "symlink.zip", "example-agent", directory, 1024); err == nil {
+		t.Fatal("accepted symlink-mode zip entry")
 	}
-	release, err := source.LatestStable(context.Background())
-	if err != nil {
-		t.Fatalf("LatestStable: %v", err)
-	}
-	if release.Tag != "v1.2.3" || len(release.Assets) != 1 || release.Assets[0].Name != "checksums.txt" {
-		t.Fatalf("release = %+v", release)
-	}
-}
 
-func TestGitHubSourceRejectsAssetOutsideConfiguredRepository(t *testing.T) {
-	source := GitHubSource{Repository: "owner/repository"}
-	for _, raw := range []string{
-		"http://github.com/owner/repository/releases/download/v1.2.3/file",
-		"https://example.com/owner/repository/releases/download/v1.2.3/file",
-		"https://github.com/attacker/repository/releases/download/v1.2.3/file",
-	} {
-		if err := source.validateDownloadURL(raw, "v1.2.3"); err == nil {
-			t.Errorf("accepted URL %s", raw)
-		}
+	duplicatePath := filepath.Join(directory, "duplicate.tar.gz")
+	if err := os.WriteFile(duplicatePath, tarGzArchiveWithNames(t, []string{"bin/example-agent", "example-agent"}, []byte("duplicate")), 0o600); err != nil {
+		t.Fatalf("write duplicate archive: %v", err)
 	}
-	if err := source.validateDownloadURL(
-		"https://github.com/owner/repository/releases/download/v1.2.3/file",
-		"v1.2.3",
-	); err != nil {
-		t.Fatalf("valid URL: %v", err)
+	if _, err := extractBinary(duplicatePath, "duplicate.tar.gz", "example-agent", directory, 1024); err == nil || !strings.Contains(err.Error(), "more than one") {
+		t.Fatalf("duplicate archive error = %v", err)
 	}
 }
 
@@ -503,6 +531,14 @@ func TestCommandVersionVerifierRequiresExactFirstLine(t *testing.T) {
 	}
 	if err := verifier.Verify(context.Background(), binary, "v1.2.4"); err == nil {
 		t.Fatal("accepted mismatched version output")
+	}
+	noisy := filepath.Join(directory, "noisy-agent")
+	noisyScript := "#!/bin/sh\nprintf '" + strings.Repeat("x", 70*1024) + "'\n"
+	if err := os.WriteFile(noisy, []byte(noisyScript), 0o755); err != nil {
+		t.Fatalf("write noisy version fixture: %v", err)
+	}
+	if err := verifier.Verify(context.Background(), noisy, "v1.2.3"); err == nil || !strings.Contains(err.Error(), "exceeded") {
+		t.Fatalf("oversized version output error = %v", err)
 	}
 }
 
@@ -542,13 +578,13 @@ func TestUpdateRunsStrictVersionProbeOnStagedAndInstalledExecutable(t *testing.T
 		AssetName:      func(string, string, string) string { return archiveName },
 		Source:         source,
 		Verifier:       ExactVersionLine("example-agent"),
-		PlatformOS:     "darwin",
-		PlatformArch:   "arm64",
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	result, err := service.Update(context.Background())
+	service.platformOS = "darwin"
+	service.platformArch = "arm64"
+	result, err := service.UpdateLatest(context.Background())
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
@@ -558,6 +594,69 @@ func TestUpdateRunsStrictVersionProbeOnStagedAndInstalledExecutable(t *testing.T
 	if err := ExactVersionLine("example-agent").Verify(context.Background(), target, "v1.2.3"); err != nil {
 		t.Fatalf("verify installed fixture: %v", err)
 	}
+}
+
+func TestUpdateSupportsReleaseSpecificArchiveBinaryName(t *testing.T) {
+	directory := t.TempDir()
+	target := filepath.Join(directory, "example-agent")
+	if err := os.WriteFile(target, []byte("old binary"), 0o755); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	archiveName := "example-agent-v1.2.3-darwin-arm64.tar.gz"
+	archivedBinaryName := "example-agent-v1.2.3-darwin-arm64"
+	archive := tarGzArchive(t, archivedBinaryName, []byte("new binary"))
+	digest := sha256.Sum256(archive)
+	manifest := []byte(fmt.Sprintf("%s  %s\n", hex.EncodeToString(digest[:]), archiveName))
+	source := &fakeSource{
+		release: Release{
+			Tag: "v1.2.3",
+			Assets: []Asset{
+				{Name: archiveName, Size: int64(len(archive))},
+				{Name: "checksums.txt", Size: int64(len(manifest))},
+			},
+		},
+		data: map[string][]byte{
+			archiveName:     archive,
+			"checksums.txt": manifest,
+		},
+	}
+	service, err := New(Config{
+		Product:        "example-agent",
+		CurrentVersion: "v1.0.0",
+		ExecutablePath: target,
+		ArchiveBinaryName: func(tag, goos, goarch string) string {
+			return fmt.Sprintf("example-agent-%s-%s-%s", tag, goos, goarch)
+		},
+		AssetName: func(string, string, string) string { return archiveName },
+		Source:    source,
+		Verifier:  VersionVerifierFunc(func(context.Context, string, string) error { return nil }),
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	service.platformOS = "darwin"
+	service.platformArch = "arm64"
+	if _, err := service.UpdateLatest(context.Background()); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	assertContent(t, target, "new binary")
+}
+
+func TestUpdateRejectsInvalidReleaseSpecificBinaryNameBeforeDownload(t *testing.T) {
+	harness := newUpdateHarness(t, VersionVerifierFunc(func(context.Context, string, string) error {
+		return nil
+	}))
+	harness.updater.config.BinaryName = ""
+	harness.updater.config.ArchiveBinaryName = func(string, string, string) string {
+		return "../example-agent"
+	}
+	if _, err := harness.updater.UpdateLatest(context.Background()); err == nil || !strings.Contains(err.Error(), "invalid file name") {
+		t.Fatalf("Update error = %v", err)
+	}
+	if len(harness.source.downloads) != 0 {
+		t.Fatalf("downloaded assets for invalid binary name: %v", harness.source.downloads)
+	}
+	assertContent(t, harness.target, "old binary")
 }
 
 func TestReleaseArchiveName(t *testing.T) {
@@ -595,9 +694,34 @@ func TestNewValidatesConfig(t *testing.T) {
 		t.Fatal("accepted path-shaped binary name")
 	}
 	invalid = base
+	invalid.ArchiveBinaryName = func(string, string, string) string { return "example" }
+	if _, err := New(invalid); err == nil {
+		t.Fatal("accepted both static and dynamic archive binary names")
+	}
+	invalid = base
+	invalid.ChecksumsAsset = `..\checksums.txt`
+	if _, err := New(invalid); err == nil {
+		t.Fatal("accepted Windows-style path-shaped checksums asset")
+	}
+	invalid = base
+	invalid.ChecksumsAsset = "checksums final.txt"
+	if _, err := New(invalid); err == nil {
+		t.Fatal("accepted whitespace in checksums asset name")
+	}
+	invalid = base
 	invalid.CurrentVersion = ""
 	if _, err := New(invalid); err == nil {
 		t.Fatal("accepted empty current version")
+	}
+	invalid = base
+	invalid.CurrentVersion = "not-a-version"
+	if _, err := New(invalid); err == nil {
+		t.Fatal("accepted invalid current version")
+	}
+	invalid = base
+	invalid.CurrentVersion = "developer-build"
+	if _, err := New(invalid); err == nil {
+		t.Fatal("accepted an ambiguous development version")
 	}
 	if runtime.GOOS != "windows" {
 		symlink := filepath.Join(t.TempDir(), "example-link")
@@ -613,15 +737,21 @@ func TestNewValidatesConfig(t *testing.T) {
 }
 
 func tarGzArchive(t *testing.T, name string, content []byte) []byte {
+	return tarGzArchiveWithNames(t, []string{name}, content)
+}
+
+func tarGzArchiveWithNames(t *testing.T, names []string, content []byte) []byte {
 	t.Helper()
 	var buffer bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buffer)
 	tarWriter := tar.NewWriter(gzipWriter)
-	if err := tarWriter.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(content)), Typeflag: tar.TypeReg}); err != nil {
-		t.Fatalf("write tar header: %v", err)
-	}
-	if _, err := tarWriter.Write(content); err != nil {
-		t.Fatalf("write tar content: %v", err)
+	for _, name := range names {
+		if err := tarWriter.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(content)), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatalf("write tar header: %v", err)
+		}
+		if _, err := tarWriter.Write(content); err != nil {
+			t.Fatalf("write tar content: %v", err)
+		}
 	}
 	if err := tarWriter.Close(); err != nil {
 		t.Fatalf("close tar: %v", err)
@@ -654,6 +784,30 @@ func writeZipArchive(t *testing.T, destination, name string, content []byte) {
 	}
 }
 
+func writeZipSymlink(t *testing.T, destination, name, target string) {
+	t.Helper()
+	file, err := os.Create(destination)
+	if err != nil {
+		t.Fatalf("create zip: %v", err)
+	}
+	writer := zip.NewWriter(file)
+	header := &zip.FileHeader{Name: name}
+	header.SetMode(os.ModeSymlink | 0o777)
+	entry, err := writer.CreateHeader(header)
+	if err != nil {
+		t.Fatalf("create zip symlink entry: %v", err)
+	}
+	if _, err := entry.Write([]byte(target)); err != nil {
+		t.Fatalf("write zip symlink entry: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close zip writer: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close zip file: %v", err)
+	}
+}
+
 func assertContent(t *testing.T, path, want string) {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -675,11 +829,11 @@ func TestContextCancellationReleasesLock(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	if _, err := harness.updater.Update(ctx); err == nil {
+	if _, err := harness.updater.UpdateLatest(ctx); err == nil {
 		t.Fatal("cancelled update succeeded")
 	}
 	harness.source.latest = nil
-	if _, err := harness.updater.Update(context.Background()); err != nil {
+	if _, err := harness.updater.UpdateLatest(context.Background()); err != nil {
 		t.Fatalf("lock was not released after cancellation: %v", err)
 	}
 }

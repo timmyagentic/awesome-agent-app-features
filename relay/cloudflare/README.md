@@ -1,63 +1,51 @@
-# Cloudflare feedback relay
+# Cloudflare Feedback v1 relay
 
-This is a self-hosted, single-tenant relay. It accepts an explicitly approved,
-redacted report and creates (or deduplicates onto) a GitHub issue without
-putting a GitHub token in the product binary.
-
-The client cannot choose the destination repository. `GITHUB_REPO` and the
-fine-grained token are configured on the Worker.
+This is a self-hosted, single-tenant adapter from provider-neutral Feedback v1 to GitHub Issues. It owns GitHub title/body rendering, label, repository, token, rate limiting, and best-effort deduplication. Product binaries contain none of those credentials or destination controls.
 
 ## Configure
 
-1. Copy this directory or deploy it from the repository.
-2. Change `name`, `GITHUB_REPO`, and optionally `GITHUB_LABEL` in
-   `wrangler.jsonc`.
-3. Change the `RATE_LIMITER` `namespace_id` from the example `1001` to a
-   positive integer unique within your Cloudflare account.
-4. Create a fine-grained GitHub token restricted to that repository with
-   Issues read/write permission.
-5. Install the pinned Wrangler version, store the token as a Worker secret,
-   validate, and deploy:
+1. Copy this directory or deploy it from a pinned repository tag.
+2. Change the Worker `name`, `GITHUB_REPO`, and optional `GITHUB_LABEL` in `wrangler.jsonc`.
+3. Replace the example rate-limit `namespace_id` with a positive integer unique in the Cloudflare account.
+4. Create a fine-grained GitHub token restricted to that repository with Issues read/write.
+5. Install locked dependencies, set the secret, verify, and deploy:
 
 ```bash
-npm install
+npm ci --ignore-scripts
 npm exec wrangler secret put GITHUB_TOKEN
+npm test
+npm run check
 npm run validate:worker
 npm exec wrangler deploy
 ```
 
-Do not put `GITHUB_TOKEN` in `wrangler.jsonc`, source control, application
-configuration, or the client binary.
+Never put `GITHUB_TOKEN` in `wrangler.jsonc`, source control, client configuration, fixtures, or logs. The repository ships no production route/domain and does not deploy this Worker automatically.
 
 ## Contract
 
-`POST /v1/feedback` accepts feedback schema 1 from the Go `feedback` package.
-The relay requires `user_approved: true`, validates a strict field allowlist,
-limits title/body sizes by UTF-8 bytes, and always uses its server-side target.
+Only `POST /v1/feedback` with `Content-Type: application/json` is accepted. The payload must match [Feedback v1](../../docs/protocol-feedback-v1.md), include `schema: 1` and `user_approved: true`, contain no unknown fields, and stay inside byte limits.
 
-Success:
+Clients cannot send issue title/body, label, repository, or token. The Worker validates structured data, renders the issue, bounds GitHub responses, validates returned issue URLs, and returns:
 
 ```json
 {
-  "issue_url": "https://github.com/owner/repository/issues/7",
+  "reference_url": "https://github.com/owner/repository/issues/7",
   "deduplicated": false
 }
 ```
 
-Identical open reports are deduplicated on product + title and become `+1`
-comments. This is best effort because GitHub issue search is eventually
-consistent.
+The fingerprint uses provider-neutral report content. Matching open issues receive a `+1` environment comment. GitHub search is eventually consistent, so this is best effort rather than a uniqueness guarantee.
 
-`RATE_LIMITER` is required. The included Wrangler template configures five
-requests per 60 seconds per installation ID, falling back to source IP only
-when the client omits its anonymous install ID. Cloudflare's counters are local
-to a data center and eventually consistent, so this is an abuse brake rather
-than billing-grade accounting. Shared IP fallback can limit unrelated users.
+The rate-limit key prefers Cloudflare's connecting IP and falls back to the optional random install ID. The included binding allows five requests per 60 seconds. Counters are data-center local/eventually consistent and shared IPs can over-limit; treat it as an abuse brake.
 
-## Verify locally
+## Verification
 
 ```bash
-npm test
+npm ci --ignore-scripts
+npm test                 # Node unit/contract tests + real workerd runtime smoke tests
 npm run check
-npm run validate:worker
+npm run validate:worker  # Wrangler dry run against the committed config
+npm audit --audit-level=high
 ```
+
+The Worker has structured error logging, bounded request/upstream reads, a 15-second GitHub timeout, no global request state, and no floating promises. Compatibility date, bindings, observability, and non-secret vars live in `wrangler.jsonc`.

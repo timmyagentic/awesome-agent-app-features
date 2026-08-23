@@ -1,8 +1,9 @@
-// Package feedback builds redacted, user-approved feedback reports and sends
-// them to an author-operated relay.
+// Package feedback builds provider-neutral, redacted feedback reports and
+// records explicit user approval.
 //
 // The package deliberately stops at the product boundary. Host applications
-// own the button, card, natural-language intent, permission, and localization
-// layers. The only submission API accepts an Approved report, so an adapter
-// has to make the approval step explicit in code.
+// own rendering, interaction, permission, and localization. Transport and
+// downstream issue formatting live in adapter packages. Report is a
+// non-serializable preview; Approved is the only serializable report type, so
+// an adapter has to make approval explicit. Version 1 emits Feedback wire v1.
 package feedback

@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "user_approved": true,
+  "environment": {
+    "product": "Example Agent"
+  },
+  "description": "Improve startup diagnostics",
+  "title": "client-controlled issue title"
+}

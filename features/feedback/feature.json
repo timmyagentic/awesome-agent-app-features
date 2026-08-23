@@ -1,0 +1,38 @@
+{
+  "$schema": "../feature.schema.json",
+  "schema": 1,
+  "id": "feedback",
+  "name": "User-approved in-product feedback",
+  "maturity": "mvp",
+  "runtime": ["go", "cloudflare-worker"],
+  "package": "./feedback",
+  "relay": "./relay/cloudflare",
+  "prerequisites": [
+    "The host can render the complete redacted draft before submission.",
+    "The host has an explicit user action that means submit.",
+    "The author can operate a single-tenant HTTPS relay, a Cloudflare Rate Limiting binding, and a repository-scoped GitHub token."
+  ],
+  "invariants": [
+    "There is one feedback shape; errors and capability gaps are optional context, not categories.",
+    "No report is submitted in the background or before an explicit user action.",
+    "Every outbound free-text field is redacted and bounded before approval.",
+    "Automatically captured environment data is a fixed allowlist.",
+    "The client has no GitHub token and cannot select the relay target repository.",
+    "The relay validates schema, approval, fields, and byte limits again."
+  ],
+  "integration_steps": [
+    "Inventory user-visible errors, capability gaps, feedback UI, configuration, and fallback issue URL.",
+    "Build a feedback.Input from user prose plus only fresh, relevant context.",
+    "Show Draft.Preview or an equivalent rendering of every outbound field.",
+    "Call Draft.Approve(true) only after the host receives the explicit user action.",
+    "Submit Approved through feedback.Client to the self-hosted HTTPS relay.",
+    "Handle relay failure without exposing payloads or credentials, and offer the public issue fallback.",
+    "Add product-specific redaction and approval regression tests."
+  ],
+  "verification": [
+    "go test -race ./feedback",
+    "npm test --prefix relay/cloudflare",
+    "npm run check --prefix relay/cloudflare",
+    "npm run validate:worker --prefix relay/cloudflare"
+  ]
+}

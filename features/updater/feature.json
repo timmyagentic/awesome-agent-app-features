@@ -1,0 +1,38 @@
+{
+  "$schema": "../feature.schema.json",
+  "schema": 1,
+  "id": "updater",
+  "name": "Stable-only standalone updater",
+  "maturity": "mvp",
+  "runtime": ["go"],
+  "package": "./updater",
+  "platforms": ["darwin", "linux"],
+  "prerequisites": [
+    "Stable GitHub Releases use exact semantic-version tags and contain an archive plus checksums.txt.",
+    "The released binary has a strict, non-mutating version probe.",
+    "The host can enforce update authorization and owns restart behavior."
+  ],
+  "invariants": [
+    "Ordinary update flows accept only exact stable tags matching v?X.Y.Z.",
+    "The checksum manifest and archive are exact assets on the same selected Release.",
+    "SHA-256 is verified before archive extraction or executable mutation.",
+    "The staged binary reports the selected version before replacement.",
+    "The old executable is backed up and never overwritten by a pre-existing backup.",
+    "The installed binary reports the selected version after replacement or the old executable is restored.",
+    "Concurrent update entry points serialize through one transaction and target lock.",
+    "Core update policy contains no chat, CLI, localization, or restart presentation logic."
+  ],
+  "integration_steps": [
+    "Inventory current-version truth, release assets, executable path, version output, all update entry points, authorization, and restart lifecycle.",
+    "Configure one updater.Updater with the exact repository, archive naming function, binary name, and strict version verifier.",
+    "Route chat, CLI, UI, and manual update actions to that same updater service instead of duplicating installers.",
+    "Render updater.Event values in each adapter without branching update policy.",
+    "Keep beta/nightly installation separate and never feed prereleases into the stable updater.",
+    "After a successful transaction, let the host perform its graceful restart and post-restart acknowledgement.",
+    "Add failure-injection tests for checksum, staged version, installed version rollback, and concurrency."
+  ],
+  "verification": [
+    "go test -race ./updater",
+    "go vet ./updater"
+  ]
+}

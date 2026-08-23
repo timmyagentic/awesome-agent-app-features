@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/timmyagentic/awesome-agent-app-features/features/feature.schema.json",
+  "title": "Agent app feature manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "maturity",
+    "runtime",
+    "package",
+    "prerequisites",
+    "invariants",
+    "integration_steps",
+    "verification"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "maturity": { "enum": ["mvp", "stable"] },
+    "runtime": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "package": { "type": "string", "minLength": 1 },
+    "relay": { "type": "string", "minLength": 1 },
+    "platforms": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "prerequisites": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "invariants": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "integration_steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "verification": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

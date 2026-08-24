@@ -3,8 +3,8 @@
   "schema": 1,
   "source": {
     "repository": "timmyagentic/awesome-agent-app-features",
-    "resolved_commit": "2592bd01003a687b37ca3e261e8c59bb61934409",
-    "ci_run_url": "https://github.com/timmyagentic/awesome-agent-app-features/actions/runs/32651611675",
+    "resolved_commit": "43b0166c299122c6980f631054b5705f23ed00af",
+    "ci_run_url": "https://github.com/timmyagentic/awesome-agent-app-features/actions/runs/32682714977",
     "ci_conclusion": "success",
     "entry_path": "features/index.json",
     "manifest_path": "features/feedback/feature.json"

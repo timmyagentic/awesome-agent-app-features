@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/timmyagentic/awesome-agent-app-features/features/index.schema.json",
+  "title": "Remote agent feature entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "repository",
+    "module",
+    "contract",
+    "release_status",
+    "since",
+    "integration_model",
+    "entrypoint",
+    "resolution",
+    "delivery",
+    "agent_flow",
+    "features"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema": { "const": 1 },
+    "id": { "const": "awesome-agent-app-features" },
+    "repository": { "const": "https://github.com/timmyagentic/awesome-agent-app-features" },
+    "module": { "const": "github.com/timmyagentic/awesome-agent-app-features" },
+    "contract": { "const": "v1" },
+    "release_status": { "enum": ["unreleased", "released"] },
+    "since": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" }
+      ]
+    },
+    "integration_model": { "const": "remote-agent-assisted-code-change" },
+    "entrypoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "discovery_url", "integration_plan_schema"],
+      "properties": {
+        "path": { "const": "features/index.json" },
+        "discovery_url": {
+          "const": "https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json"
+        },
+        "integration_plan_schema": { "const": "features/integration-plan.schema.json" }
+      }
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "repository", "bootstrap_ref", "immutable_ref", "ci", "fetch"],
+      "properties": {
+        "provider": { "const": "github" },
+        "repository": { "const": "timmyagentic/awesome-agent-app-features" },
+        "bootstrap_ref": { "const": "main" },
+        "immutable_ref": { "const": "full-commit-sha" },
+        "ci": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["workflow", "required_status", "required_conclusion"],
+          "properties": {
+            "workflow": { "const": "CI" },
+            "required_status": { "const": "completed" },
+            "required_conclusion": { "const": "success" }
+          }
+        },
+        "fetch": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "same_commit_required",
+            "raw_url_template",
+            "contents_api_template",
+            "archive_url_template"
+          ],
+          "properties": {
+            "same_commit_required": { "const": true },
+            "raw_url_template": {
+              "const": "https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/{commit}/{path}"
+            },
+            "contents_api_template": {
+              "const": "https://api.github.com/repos/timmyagentic/awesome-agent-app-features/contents/{path}?ref={commit}"
+            },
+            "archive_url_template": {
+              "const": "https://api.github.com/repos/timmyagentic/awesome-agent-app-features/tarball/{commit}"
+            }
+          }
+        }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user_clone_required", "allowed_modes", "forbidden"],
+      "properties": {
+        "user_clone_required": { "const": false },
+        "allowed_modes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["go-module", "source-subtree"] }
+        },
+        "forbidden": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": { "enum": ["user-clone", "git-submodule", "local-replace", "floating-main"] }
+        }
+      }
+    },
+    "agent_flow": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "manifest", "readme", "contract"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "manifest": { "type": "string", "pattern": "^features/[a-z][a-z0-9-]*/feature\\.json$" },
+          "readme": { "type": "string", "pattern": "^features/[a-z][a-z0-9-]*/README\\.md$" },
+          "contract": { "const": "v1" }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "release_status": { "const": "unreleased" } } },
+      "then": { "properties": { "since": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "release_status": { "const": "released" } } },
+      "then": { "properties": { "since": { "type": "string" } } }
+    }
+  ]
+}

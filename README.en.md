@@ -1,8 +1,8 @@
 # Awesome Agent App Features
 
-[中文](README.md) · [Agent integration](docs/agent-integration.md) · [Compatibility](COMPATIBILITY.md) · [Security](docs/security.md)
+[中文](README.md) · [Agent integration](docs/agent-integration.en.md) · [Compatibility](COMPATIBILITY.md) · [Security](docs/security.md)
 
-Headless feature-foundation code for agent applications. Give this repository and the target project to a coding agent: it first understands the host architecture, then integrates the reliable low-level capability. Cards, commands, authorization, localization, restart behavior, and product flow remain in the host.
+Headless feature-foundation code for agent applications. The user stays in the target project and tells a coding agent which feature to integrate. The agent resolves the official remote entry to one commit SHA, adds only the declared dependency or template, and writes the host-specific adapter. Cards, commands, authorization, localization, restart behavior, and product flow remain in the host.
 
 This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The currently unreleased `v1` contract stabilizes three integration outcomes:
 
@@ -12,13 +12,45 @@ This is not an awesome list, Codex Skills collection, UI framework, or hosted Sa
 | Feedback | Redacted `Draft`, non-serializable preview, explicit `Approved`, Feedback v1 HTTPS client, single-tenant Cloudflare relay | Trigger timing, Feishu/Slack/CLI/web rendering, confirmation, and failure UX |
 | Updater | Immutable exact plan, stable-only selection, same-release checksum, two version checks, locks, no-clobber backup, and rollback | Update prompt, authorization, install-kind detection, restart, and acknowledgement |
 
-## Current integration status
+## No-clone integration
+
+The canonical machine-readable entry is [features/index.json](features/index.json). Its public discovery URL is:
+
+```text
+https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json
+```
+
+`main` is discovery-only. The agent must resolve it to a full commit SHA, require successful `CI` for that commit, then refetch the entry, feature manifest, documentation, and source subtree from that same SHA. The user does not clone this repository, and the target project must not use a Git submodule, local `replace`, or floating `main`.
+
+Give the agent this instruction from inside the target project:
+
+```text
+Integrate the feedback (or updater) feature from awesome-agent-app-features
+into the current project. Official entry:
+https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json
+
+Do not ask me to clone the repository. Resolve main to a full commit SHA and
+require successful CI for that SHA. Pin the entry, manifest, documentation,
+dependency, and template to the same SHA. First map the host using the
+integration-plan schema, then implement the thin adapter and tests. Preserve
+every invariant and mark unavailable client, credential, deployment, or
+restart checks as UNVERIFIED.
+```
 
 No version has been published yet. To evaluate the current v1 contract, use Go 1.25 or newer and pin an exact reviewed commit SHA rather than floating `main`:
 
 ```bash
-go get github.com/timmyagentic/awesome-agent-app-features@FULL_REVIEWED_COMMIT_SHA
+go get github.com/timmyagentic/awesome-agent-app-features@<agent-resolved-commit-sha>
 ```
+
+The agent runs this inside the target project. Go downloads the module into its cache; it does not create a working copy of this repository. Before changing the host, the agent can run both zero-configuration examples remotely:
+
+```bash
+go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@<agent-resolved-commit-sha>
+go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@<agent-resolved-commit-sha>
+```
+
+The updater demo replaces only a fake executable in a temporary directory. It does not contact GitHub Releases or touch an installed product. See the [agent integration guide](docs/agent-integration.en.md) and [integration plan schema](features/integration-plan.schema.json) for the complete protocol.
 
 The supported v1 packages are:
 
@@ -94,23 +126,17 @@ Import both `updater` and `updater/github`. `Prepare` pins the release, archive,
 
 The default archive name is `<product>-<tag>-<os>-<arch>.tar.gz` (zip on Windows), with `checksums.txt` as the default manifest. Use `ArchiveBinaryName` when the binary inside the archive changes by tag or platform. In-place standalone replacement is supported on macOS/Linux and rejects symlink executables. npm, Homebrew, and Windows require host-owned install adapters.
 
-## Prompt for a coding agent
+## Agent integration protocol
 
-```text
-No version is published yet. Pin a reviewed full commit SHA; do not use main,
-a local replace, or another floating reference. Move to the immutable v1 tag
-only after it is formally published.
-Read features/<feature>/feature.json, its README, and
-docs/agent-integration.md. Inventory my existing UI, authorization, version
-truth, release assets, install kind, and restart lifecycle before editing.
-Reuse the foundation core/adapters, implement presentation and product flow in
-the host, preserve every invariant, and run both verification suites.
-```
+The agent uses [features/index.json](features/index.json) as the only entry and fetches the selected `features/<id>/feature.json`, README, and delivery items from the same commit SHA. It first maps the host's UI, authorization, version truth, release assets, install kinds, and lifecycle with [integration-plan.schema.json](features/integration-plan.schema.json), then changes the target project.
+
+A `go-module` delivery adds the exact SHA as a dependency. A `source-subtree` delivery extracts only the declared directory from the same-SHA GitHub archive or Contents API into host infrastructure. The agent may use temporary downloads or language package caches internally, but the user never manages a second checkout of this repository.
 
 A host Feishu card is only a renderer for `Report`, `Plan`, or `Event`; it does not belong in this repository. See [docs/architecture.md](docs/architecture.md) for the ownership model.
 
 ## Security boundaries
 
+- Resolve the remote entry to a full commit SHA; entry, manifest, dependency, examples, and templates must use that same CI-successful SHA.
 - Feedback is never sent in the background; `Approved` must follow an explicit user action.
 - Default redaction, fixed environment allowlists, and UTF-8 byte limits are enforced in both Go and the relay.
 - Ordinary updates accept only exact `v?X.Y.Z` stable tags; drafts, prereleases, and leading-zero versions fail closed.
@@ -124,13 +150,16 @@ A host Feishu card is only a renderer for `Report`, `Plan`, or `Event`; it does 
 ```text
 api/v1.txt                    v1 public API snapshot
 compat/v1                     external-consumer compile contract
-features/*                    agent-readable integration manifests
+features/index.json           single no-clone remote agent entry
+features/*.schema.json        entry, feature, and host-plan contracts
+features/*/feature.json       agent-readable integration manifests
 feedback/                     provider-neutral Feedback core
 feedback/httpclient/          Feedback v1 HTTPS adapter
 protocol/feedback/v1/         JSON Schema and shared Go/JS fixtures
 updater/                      stable standalone transaction core
 updater/github/               GitHub Releases source adapter
 relay/cloudflare/             runnable single-tenant GitHub Issues relay
+examples/updater-demo/        offline transaction against temporary files
 ```
 
 ```bash

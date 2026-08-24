@@ -1,6 +1,14 @@
 # Updater v1 integration contract
 
-Read `feature.json` and [the full transaction contract](../../docs/updater-contract.md) first.
+Agents discover this contract through `features/index.json`, resolve one CI-successful commit SHA, and fetch this README, `feature.json`, and the Go module from that same SHA. The user does not clone the foundation.
+
+Run the complete updater transaction remotely without a Release repository:
+
+```bash
+GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@<resolved-commit-sha>
+```
+
+The demo mutates only a temporary fake executable. Read [the full transaction contract](../../docs/updater-contract.md) before host implementation.
 
 Interactive entry points must use:
 

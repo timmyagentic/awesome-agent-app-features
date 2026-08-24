@@ -15,6 +15,8 @@
     "runtime",
     "package",
     "integration_model",
+    "delivery",
+    "remote_examples",
     "foundation",
     "prerequisites",
     "invariants",
@@ -43,6 +45,67 @@
     },
     "package": { "type": "string", "minLength": 1 },
     "integration_model": { "const": "agent-assisted-code-change" },
+    "delivery": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "pin", "module", "minimum_go", "packages"],
+            "properties": {
+              "mode": { "const": "go-module" },
+              "pin": { "const": "resolved-commit" },
+              "module": { "const": "github.com/timmyagentic/awesome-agent-app-features" },
+              "minimum_go": { "const": "1.25.0" },
+              "packages": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^github\\.com/timmyagentic/awesome-agent-app-features(/[a-z][a-z0-9-]*)+$"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "pin", "path", "destination"],
+            "properties": {
+              "mode": { "const": "source-subtree" },
+              "pin": { "const": "resolved-commit" },
+              "path": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9.-]*(/[a-z0-9][a-z0-9.-]*)*$"
+              },
+              "destination": { "const": "host-infrastructure" }
+            }
+          }
+        ]
+      }
+    },
+    "remote_examples": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "mode", "package", "network", "side_effects"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "mode": { "const": "go-run" },
+          "package": {
+            "type": "string",
+            "pattern": "^github\\.com/timmyagentic/awesome-agent-app-features/examples/[a-z][a-z0-9-]*$"
+          },
+          "network": { "enum": ["none", "optional", "required"] },
+          "side_effects": { "enum": ["none", "temporary-files-only"] }
+        }
+      }
+    },
     "foundation": {
       "type": "object",
       "additionalProperties": false,
@@ -103,9 +166,26 @@
       "items": { "type": "string", "minLength": 1 }
     },
     "verification": {
-      "type": "array",
-      "minItems": 1,
-      "items": { "type": "string", "minLength": 1 }
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remote", "foundation", "host"],
+      "properties": {
+        "remote": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "foundation": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "host": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
     }
   },
   "allOf": [

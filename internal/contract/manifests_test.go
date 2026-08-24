@@ -22,6 +22,30 @@ type adapter struct {
 	Role string `json:"role"`
 }
 
+type deliveryItem struct {
+	Mode        string   `json:"mode"`
+	Pin         string   `json:"pin"`
+	Module      string   `json:"module,omitempty"`
+	MinimumGo   string   `json:"minimum_go,omitempty"`
+	Packages    []string `json:"packages,omitempty"`
+	Path        string   `json:"path,omitempty"`
+	Destination string   `json:"destination,omitempty"`
+}
+
+type remoteExample struct {
+	ID          string `json:"id"`
+	Mode        string `json:"mode"`
+	Package     string `json:"package"`
+	Network     string `json:"network"`
+	SideEffects string `json:"side_effects"`
+}
+
+type verification struct {
+	Remote     []string `json:"remote"`
+	Foundation []string `json:"foundation"`
+	Host       []string `json:"host"`
+}
+
 type foundation struct {
 	Core     []string  `json:"core"`
 	Adapters []adapter `json:"adapters"`
@@ -30,24 +54,26 @@ type foundation struct {
 }
 
 type manifest struct {
-	SchemaURL        string     `json:"$schema"`
-	Schema           int        `json:"schema"`
-	ID               string     `json:"id"`
-	Name             string     `json:"name"`
-	Maturity         string     `json:"maturity"`
-	Contract         string     `json:"contract"`
-	ReleaseStatus    string     `json:"release_status"`
-	Since            *string    `json:"since"`
-	Runtime          []string   `json:"runtime"`
-	Package          string     `json:"package"`
-	IntegrationModel string     `json:"integration_model"`
-	Foundation       foundation `json:"foundation"`
-	Prerequisites    []string   `json:"prerequisites"`
-	Invariants       []string   `json:"invariants"`
-	IntegrationSteps []string   `json:"integration_steps"`
-	Verification     []string   `json:"verification"`
-	Relay            string     `json:"relay,omitempty"`
-	Platforms        []string   `json:"platforms,omitempty"`
+	SchemaURL        string          `json:"$schema"`
+	Schema           int             `json:"schema"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Maturity         string          `json:"maturity"`
+	Contract         string          `json:"contract"`
+	ReleaseStatus    string          `json:"release_status"`
+	Since            *string         `json:"since"`
+	Runtime          []string        `json:"runtime"`
+	Package          string          `json:"package"`
+	IntegrationModel string          `json:"integration_model"`
+	Delivery         []deliveryItem  `json:"delivery"`
+	RemoteExamples   []remoteExample `json:"remote_examples"`
+	Foundation       foundation      `json:"foundation"`
+	Prerequisites    []string        `json:"prerequisites"`
+	Invariants       []string        `json:"invariants"`
+	IntegrationSteps []string        `json:"integration_steps"`
+	Verification     verification    `json:"verification"`
+	Relay            string          `json:"relay,omitempty"`
+	Platforms        []string        `json:"platforms,omitempty"`
 }
 
 func TestFeatureManifestsAreCompleteAndPointToCode(t *testing.T) {
@@ -89,19 +115,90 @@ func TestFeatureManifestsAreCompleteAndPointToCode(t *testing.T) {
 		if item.IntegrationModel != "agent-assisted-code-change" {
 			t.Errorf("%s integration model = %q", path, item.IntegrationModel)
 		}
+		if len(item.Delivery) == 0 {
+			t.Errorf("%s has no remote delivery", path)
+		}
+		for _, delivery := range item.Delivery {
+			if delivery.Pin != "resolved-commit" {
+				t.Errorf("%s delivery pin = %q", path, delivery.Pin)
+			}
+			switch delivery.Mode {
+			case "go-module":
+				if delivery.Module != "github.com/timmyagentic/awesome-agent-app-features" || delivery.MinimumGo != "1.25.0" || len(delivery.Packages) == 0 || delivery.Path != "" || delivery.Destination != "" {
+					t.Errorf("%s invalid Go module delivery: %+v", path, delivery)
+				}
+				for _, packagePath := range delivery.Packages {
+					const module = "github.com/timmyagentic/awesome-agent-app-features/"
+					if !strings.HasPrefix(packagePath, module) {
+						t.Errorf("%s package %q is outside the module", path, packagePath)
+						continue
+					}
+					localPath := filepath.Join(root, strings.TrimPrefix(packagePath, module))
+					if info, err := os.Stat(localPath); err != nil || !info.IsDir() {
+						t.Errorf("%s remote package %q is unavailable", path, packagePath)
+					}
+				}
+			case "source-subtree":
+				if delivery.Path == "" || delivery.Destination != "host-infrastructure" || delivery.Module != "" || delivery.MinimumGo != "" || len(delivery.Packages) != 0 {
+					t.Errorf("%s invalid source subtree delivery: %+v", path, delivery)
+					continue
+				}
+				if clean := filepath.ToSlash(filepath.Clean(delivery.Path)); clean != delivery.Path || strings.HasPrefix(clean, "../") {
+					t.Errorf("%s source subtree path is not canonical: %q", path, delivery.Path)
+					continue
+				}
+				localPath := filepath.Join(root, filepath.FromSlash(delivery.Path))
+				if info, err := os.Stat(localPath); err != nil || !info.IsDir() {
+					t.Errorf("%s source subtree %q is unavailable", path, delivery.Path)
+					continue
+				}
+				if err := filepath.WalkDir(localPath, func(entryPath string, entry fs.DirEntry, err error) error {
+					if err != nil {
+						return err
+					}
+					if entry.IsDir() && (entry.Name() == "node_modules" || entry.Name() == ".wrangler") {
+						return filepath.SkipDir
+					}
+					if entry.Type()&os.ModeSymlink != 0 {
+						t.Errorf("%s source subtree contains symlink %s", path, entryPath)
+					}
+					return nil
+				}); err != nil {
+					t.Errorf("%s walk source subtree: %v", path, err)
+				}
+			default:
+				t.Errorf("%s unknown delivery mode %q", path, delivery.Mode)
+			}
+		}
+		if len(item.RemoteExamples) == 0 {
+			t.Errorf("%s has no remote example", path)
+		}
+		for _, example := range item.RemoteExamples {
+			const examplePrefix = "github.com/timmyagentic/awesome-agent-app-features/"
+			if example.ID == "" || example.Mode != "go-run" || !strings.HasPrefix(example.Package, examplePrefix) {
+				t.Errorf("%s invalid remote example: %+v", path, example)
+				continue
+			}
+			localPath := filepath.Join(root, strings.TrimPrefix(example.Package, examplePrefix))
+			if info, err := os.Stat(localPath); err != nil || !info.IsDir() {
+				t.Errorf("%s remote example package %q is unavailable", path, example.Package)
+			}
+		}
 		if _, exists := seen[item.ID]; exists {
 			t.Errorf("duplicate feature id %q", item.ID)
 		}
 		seen[item.ID] = struct{}{}
 		for label, values := range map[string][]string{
-			"runtime":             item.Runtime,
-			"foundation.core":     item.Foundation.Core,
-			"foundation.host":     item.Foundation.Host,
-			"foundation.excludes": item.Foundation.Excludes,
-			"prerequisites":       item.Prerequisites,
-			"invariants":          item.Invariants,
-			"integration_steps":   item.IntegrationSteps,
-			"verification":        item.Verification,
+			"runtime":                 item.Runtime,
+			"foundation.core":         item.Foundation.Core,
+			"foundation.host":         item.Foundation.Host,
+			"foundation.excludes":     item.Foundation.Excludes,
+			"prerequisites":           item.Prerequisites,
+			"invariants":              item.Invariants,
+			"integration_steps":       item.IntegrationSteps,
+			"verification.remote":     item.Verification.Remote,
+			"verification.foundation": item.Verification.Foundation,
+			"verification.host":       item.Verification.Host,
 		} {
 			if len(values) == 0 {
 				t.Errorf("%s has no %s", path, label)

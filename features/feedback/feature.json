@@ -10,6 +10,33 @@
   "runtime": ["go", "cloudflare-worker"],
   "package": "./feedback",
   "integration_model": "agent-assisted-code-change",
+  "delivery": [
+    {
+      "mode": "go-module",
+      "pin": "resolved-commit",
+      "module": "github.com/timmyagentic/awesome-agent-app-features",
+      "minimum_go": "1.25.0",
+      "packages": [
+        "github.com/timmyagentic/awesome-agent-app-features/feedback",
+        "github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient"
+      ]
+    },
+    {
+      "mode": "source-subtree",
+      "pin": "resolved-commit",
+      "path": "relay/cloudflare",
+      "destination": "host-infrastructure"
+    }
+  ],
+  "remote_examples": [
+    {
+      "id": "feedback-preview",
+      "mode": "go-run",
+      "package": "github.com/timmyagentic/awesome-agent-app-features/examples/feedback",
+      "network": "none",
+      "side_effects": "none"
+    }
+  ],
   "foundation": {
     "core": [
       "Provider-neutral structured feedback draft and wire schema.",
@@ -58,6 +85,7 @@
     "The relay validates schema, approval, fields, and byte limits again."
   ],
   "integration_steps": [
+    "Resolve the remote entry to one CI-successful full commit SHA; fetch this manifest and every delivery item from that same SHA without asking the user to clone the foundation.",
     "Inventory user-visible errors, capability gaps, feedback UI, configuration, and fallback issue URL.",
     "Build a feedback.Input from user prose plus only fresh, relevant context.",
     "Render every field returned by Draft.Report using the host's own UI and localization.",
@@ -66,11 +94,21 @@
     "Handle relay failure without exposing payloads or credentials, and offer the public issue fallback.",
     "Add product-specific redaction and approval regression tests."
   ],
-  "verification": [
-    "go test -race ./feedback/...",
-    "go test ./compat/v1 ./internal/contract",
-    "npm test --prefix relay/cloudflare",
-    "npm run check --prefix relay/cloudflare",
-    "npm run validate:worker --prefix relay/cloudflare"
-  ]
+  "verification": {
+    "remote": [
+      "GOWORK=off go test github.com/timmyagentic/awesome-agent-app-features/compat/v1",
+      "GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@{commit}"
+    ],
+    "foundation": [
+      "go test -race ./feedback/...",
+      "go test ./compat/v1 ./internal/contract",
+      "npm test --prefix relay/cloudflare",
+      "npm run check --prefix relay/cloudflare",
+      "npm run validate:worker --prefix relay/cloudflare"
+    ],
+    "host": [
+      "Run focused approval, redaction, no-request-on-cancel, and fallback tests in the target project.",
+      "Run the target project's complete normal verification."
+    ]
+  }
 }

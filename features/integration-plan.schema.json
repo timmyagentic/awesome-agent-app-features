@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/timmyagentic/awesome-agent-app-features/features/integration-plan.schema.json",
+  "title": "Agent feature host integration plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source",
+    "feature",
+    "host",
+    "mappings",
+    "invariants",
+    "changes",
+    "verification",
+    "unverified"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema": { "const": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "resolved_commit",
+        "ci_run_url",
+        "ci_conclusion",
+        "entry_path",
+        "manifest_path"
+      ],
+      "properties": {
+        "repository": { "const": "timmyagentic/awesome-agent-app-features" },
+        "resolved_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "ci_run_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github\\.com/timmyagentic/awesome-agent-app-features/actions/runs/[1-9][0-9]*$"
+        },
+        "ci_conclusion": { "const": "success" },
+        "entry_path": { "const": "features/index.json" },
+        "manifest_path": { "type": "string", "pattern": "^features/[a-z][a-z0-9-]*/feature\\.json$" }
+      }
+    },
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "contract", "deliveries"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "contract": { "const": "v1" },
+        "deliveries": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "source", "target"],
+            "properties": {
+              "mode": { "enum": ["go-module", "source-subtree"] },
+              "source": { "type": "string", "minLength": 1 },
+              "target": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "runtime", "existing_surfaces", "install_kinds", "decisions"],
+      "properties": {
+        "root": { "type": "string", "minLength": 1 },
+        "runtime": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "existing_surfaces": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "install_kinds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "decisions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "mappings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["contract_item", "owner", "host_location", "implementation", "tests"],
+        "properties": {
+          "contract_item": { "type": "string", "minLength": 1 },
+          "owner": { "enum": ["foundation", "adapter", "host"] },
+          "host_location": { "type": "string", "minLength": 1 },
+          "implementation": { "type": "string", "minLength": 1 },
+          "tests": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "invariants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["invariant", "status", "evidence"],
+        "properties": {
+          "invariant": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["preserved", "not-applicable", "blocked"] },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["foundation", "host"],
+      "properties": {
+        "foundation": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "host": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "unverified": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

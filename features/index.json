@@ -1,0 +1,61 @@
+{
+  "$schema": "./index.schema.json",
+  "schema": 1,
+  "id": "awesome-agent-app-features",
+  "repository": "https://github.com/timmyagentic/awesome-agent-app-features",
+  "module": "github.com/timmyagentic/awesome-agent-app-features",
+  "contract": "v1",
+  "release_status": "unreleased",
+  "since": null,
+  "integration_model": "remote-agent-assisted-code-change",
+  "entrypoint": {
+    "path": "features/index.json",
+    "discovery_url": "https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json",
+    "integration_plan_schema": "features/integration-plan.schema.json"
+  },
+  "resolution": {
+    "provider": "github",
+    "repository": "timmyagentic/awesome-agent-app-features",
+    "bootstrap_ref": "main",
+    "immutable_ref": "full-commit-sha",
+    "ci": {
+      "workflow": "CI",
+      "required_status": "completed",
+      "required_conclusion": "success"
+    },
+    "fetch": {
+      "same_commit_required": true,
+      "raw_url_template": "https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/{commit}/{path}",
+      "contents_api_template": "https://api.github.com/repos/timmyagentic/awesome-agent-app-features/contents/{path}?ref={commit}",
+      "archive_url_template": "https://api.github.com/repos/timmyagentic/awesome-agent-app-features/tarball/{commit}"
+    }
+  },
+  "delivery": {
+    "user_clone_required": false,
+    "allowed_modes": ["go-module", "source-subtree"],
+    "forbidden": ["user-clone", "git-submodule", "local-replace", "floating-main"]
+  },
+  "agent_flow": [
+    "Resolve bootstrap_ref to one full commit SHA before reading feature files.",
+    "Require the configured CI workflow to be completed successfully for that commit.",
+    "Refetch this entrypoint and every referenced resource from the same commit SHA.",
+    "Inspect the target project and produce an integration plan using integration_plan_schema.",
+    "Add only the delivery items declared by the selected feature.",
+    "Implement product-specific UI, authorization, configuration, and lifecycle code in the target project.",
+    "Run the feature verification and target-project verification, then report every unverified boundary."
+  ],
+  "features": [
+    {
+      "id": "feedback",
+      "manifest": "features/feedback/feature.json",
+      "readme": "features/feedback/README.md",
+      "contract": "v1"
+    },
+    {
+      "id": "updater",
+      "manifest": "features/updater/feature.json",
+      "readme": "features/updater/README.md",
+      "contract": "v1"
+    }
+  ]
+}

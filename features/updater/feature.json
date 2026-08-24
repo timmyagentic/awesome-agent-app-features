@@ -10,6 +10,27 @@
   "runtime": ["go"],
   "package": "./updater",
   "integration_model": "agent-assisted-code-change",
+  "delivery": [
+    {
+      "mode": "go-module",
+      "pin": "resolved-commit",
+      "module": "github.com/timmyagentic/awesome-agent-app-features",
+      "minimum_go": "1.25.0",
+      "packages": [
+        "github.com/timmyagentic/awesome-agent-app-features/updater",
+        "github.com/timmyagentic/awesome-agent-app-features/updater/github"
+      ]
+    }
+  ],
+  "remote_examples": [
+    {
+      "id": "updater-local-transaction",
+      "mode": "go-run",
+      "package": "github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo",
+      "network": "none",
+      "side_effects": "temporary-files-only"
+    }
+  ],
   "foundation": {
     "core": [
       "Stable-only release policy and immutable exact-plan selection.",
@@ -60,6 +81,7 @@
     "Core update policy contains no chat, CLI, localization, or restart presentation logic."
   ],
   "integration_steps": [
+    "Resolve the remote entry to one CI-successful full commit SHA; fetch this manifest and add the module at that same SHA without asking the user to clone the foundation.",
     "Inventory current-version truth, release assets, executable path, version output, all update entry points, authorization, and restart lifecycle.",
     "Configure one updater.Updater plus updater/github.Source with the exact repository, archive naming function, static or release-derived archive binary name, and strict version verifier.",
     "Route chat, CLI, UI, and manual update actions to that same updater service instead of duplicating installers.",
@@ -70,9 +92,19 @@
     "After a successful transaction, let the host perform its graceful restart and post-restart acknowledgement.",
     "Add failure-injection tests for checksum, staged version, installed version rollback, and concurrency."
   ],
-  "verification": [
-    "go test -race ./updater/...",
-    "go test ./compat/v1 ./internal/contract",
-    "go vet ./updater/..."
-  ]
+  "verification": {
+    "remote": [
+      "GOWORK=off go test github.com/timmyagentic/awesome-agent-app-features/compat/v1",
+      "GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@{commit}"
+    ],
+    "foundation": [
+      "go test -race ./updater/...",
+      "go test ./compat/v1 ./internal/contract",
+      "go vet ./updater/..."
+    ],
+    "host": [
+      "Run focused exact-plan, checksum, staged-version, rollback, concurrency, install-kind, and restart tests in the target project.",
+      "Run the target project's complete normal verification."
+    ]
+  }
 }

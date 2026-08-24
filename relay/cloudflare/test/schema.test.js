@@ -25,6 +25,23 @@ test("feature manifests satisfy the machine-readable schema", async () => {
   }
 });
 
+test("remote entry and integration plan satisfy their machine-readable schemas", async () => {
+  const validateEntry = validator(await readJSON("features/index.schema.json"));
+  const entry = await readJSON("features/index.json");
+  assert.equal(validateEntry(entry), true, JSON.stringify(validateEntry.errors));
+
+  const validatePlan = validator(await readJSON("features/integration-plan.schema.json"));
+  const plan = await readJSON("features/integration-plan.example.json");
+  assert.equal(validatePlan(plan), true, JSON.stringify(validatePlan.errors));
+
+  assert.equal(entry.delivery.user_clone_required, false);
+  for (const feature of entry.features) {
+    const manifest = await readJSON(feature.manifest);
+    assert.equal(manifest.id, feature.id);
+    assert.equal(manifest.contract, feature.contract);
+  }
+});
+
 test("Feedback v1 fixtures satisfy or violate the JSON Schema as declared", async () => {
   const validate = validator(await readJSON("protocol/feedback/v1/schema.json"));
   for (const name of ["valid-full.json", "valid-minimal.json"]) {

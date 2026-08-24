@@ -84,6 +84,48 @@ jobs:
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
+  remote-consumer:
+    name: Remote no-clone consumer
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: 1.27.x
+          cache: false
+      - name: Resolve and consume the exact remote commit without checkout
+        env:
+          REMOTE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          REMOTE_MODULE: github.com/timmyagentic/awesome-agent-app-features
+          REMOTE_REPOSITORY: timmyagentic/awesome-agent-app-features
+        run: |
+          set -euo pipefail
+          test "${#REMOTE_COMMIT}" -eq 40
+          entry_url="https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/features/index.json"
+          entry="$(curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "${entry_url}")"
+          jq -e '
+            .delivery.user_clone_required == false and
+            .resolution.fetch.same_commit_required == true and
+            .resolution.immutable_ref == "full-commit-sha"
+          ' <<<"${entry}" >/dev/null
+          while IFS= read -r manifest; do
+            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${manifest}" | jq -e '.contract == "v1" and .delivery != []' >/dev/null
+          done < <(jq -r '.features[].manifest' <<<"${entry}")
+
+          consumer_directory="$(mktemp -d)"
+          archive_path="${consumer_directory}/foundation.tar.gz"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://api.github.com/repos/${REMOTE_REPOSITORY}/tarball/${REMOTE_COMMIT}" --output "${archive_path}"
+          tar -tzf "${archive_path}" | grep -E '/relay/cloudflare/package.json$' >/dev/null
+          test -z "$(tar -tzf "${archive_path}" | grep -E '(^|/)\.\.(/|$)' || true)"
+          test -z "$(tar -tvzf "${archive_path}" | awk '$1 ~ /^l/ && $0 ~ /\/relay\/cloudflare\// { print }')"
+
+          cd "${consumer_directory}"
+          go mod init example.com/remote-agent-consumer
+          GOWORK=off GOPROXY=direct go get "${REMOTE_MODULE}@${REMOTE_COMMIT}"
+          GOWORK=off GOPROXY=direct go test "${REMOTE_MODULE}/compat/v1"
+          GOWORK=off GOPROXY=direct go run "${REMOTE_MODULE}/examples/feedback@${REMOTE_COMMIT}" -description "remote CI preview"
+          GOWORK=off GOPROXY=direct go run "${REMOTE_MODULE}/examples/updater-demo@${REMOTE_COMMIT}"
+
   relay:
     name: Feedback relay (Node ${{ matrix.node }})
     runs-on: ubuntu-latest

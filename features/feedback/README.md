@@ -1,6 +1,14 @@
 # Feedback v1 integration contract
 
-Read `feature.json` first. The reusable flow is:
+Agents discover this contract through `features/index.json`, resolve one CI-successful commit SHA, and fetch this README, `feature.json`, and every delivery item from that same SHA. The user does not clone the foundation.
+
+The zero-configuration remote preview is:
+
+```bash
+GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@<resolved-commit-sha>
+```
+
+The reusable flow is:
 
 ```text
 host context -> Builder -> redacted Draft -> host renders Draft.Report
@@ -19,3 +27,5 @@ Recent errors are optional context with a short freshness window. Capability gap
 Cards, buttons, localized text, fallback UX, and intent belong in the host. GitHub title/body/label/repository/token belong in the relay. The core owns neither presentation layer.
 
 Use [Feedback v1](../../docs/protocol-feedback-v1.md) for the exact wire contract and [security.md](../../docs/security.md) for residual risk.
+
+The Go core and HTTPS client use `go-module` delivery. The optional Cloudflare relay uses `source-subtree` delivery: the Agent extracts only `relay/cloudflare` from the same resolved commit into host-owned infrastructure.

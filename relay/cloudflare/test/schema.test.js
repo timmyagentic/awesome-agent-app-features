@@ -25,7 +25,7 @@ test("feature manifests satisfy the machine-readable schema", async () => {
   }
 });
 
-test("remote entry and integration plan satisfy their machine-readable schemas", async () => {
+test("remote entry, integration plan, and receipt satisfy their machine-readable schemas", async () => {
   const validateEntry = validator(await readJSON("features/index.schema.json"));
   const entry = await readJSON("features/index.json");
   assert.equal(validateEntry(entry), true, JSON.stringify(validateEntry.errors));
@@ -34,7 +34,58 @@ test("remote entry and integration plan satisfy their machine-readable schemas",
   const plan = await readJSON("features/integration-plan.example.json");
   assert.equal(validatePlan(plan), true, JSON.stringify(validatePlan.errors));
 
+  const validateReceipt = validator(await readJSON("features/integration-receipt.schema.json"));
+  const receipt = await readJSON("examples/host-receipt/.agent-app-features/feedback.json");
+  assert.equal(validateReceipt(receipt), true, JSON.stringify(validateReceipt.errors));
+
+  const blocked = structuredClone(receipt);
+  blocked.invariants[0].status = "blocked";
+  assert.equal(validateReceipt(blocked), false, "active receipt accepted a blocked invariant");
+
+  const partial = structuredClone(blocked);
+  partial.state = "partial";
+  partial.verification.find((item) => item.scope === "host").status = "failed";
+  assert.equal(validateReceipt(partial), true, JSON.stringify(validateReceipt.errors));
+
+  const unsafePath = structuredClone(receipt);
+  unsafePath.artifacts[0].path = "../../outside";
+  assert.equal(validateReceipt(unsafePath), false, "receipt accepted a traversal path");
+
+  const failedActive = structuredClone(receipt);
+  failedActive.verification.find((item) => item.scope === "host").status = "failed";
+  assert.equal(validateReceipt(failedActive), false, "active receipt accepted failed host verification");
+
+  const fakeRemoval = structuredClone(receipt);
+  fakeRemoval.state = "removed";
+  assert.equal(validateReceipt(fakeRemoval), false, "removed receipt omitted removal evidence and history");
+
+  const removed = structuredClone(receipt);
+  removed.state = "removed";
+  removed.removal = {
+    status: "complete",
+    removed_paths: ["internal/feedback/flow.go", "internal/feedback/flow_test.go"],
+    retained_paths: ["go.mod"],
+    evidence: "Host verification passed after removal.",
+  };
+  removed.history.push({
+    action: "remove",
+    from_commit: receipt.source.resolved_commit,
+    to_commit: receipt.source.resolved_commit,
+    at: receipt.updated_at,
+    summary: "Removed integration-managed host adapter files.",
+  });
+  assert.equal(validateReceipt(removed), true, JSON.stringify(validateReceipt.errors));
+
+  const secretField = structuredClone(receipt);
+  secretField.host.configuration_values = { "feedback.endpoint": "secret" };
+  assert.equal(validateReceipt(secretField), false, "receipt accepted configuration values");
+
   assert.equal(entry.delivery.user_clone_required, false);
+  assert.equal(entry.receipt.contains_secrets, false);
+  assert.deepEqual(
+    entry.actions.map((action) => action.id),
+    ["integrate", "inspect", "validate", "refine", "upgrade", "remove", "list"],
+  );
   for (const feature of entry.features) {
     const manifest = await readJSON(feature.manifest);
     assert.equal(manifest.id, feature.id);

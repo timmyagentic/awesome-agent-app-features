@@ -92,6 +92,23 @@
     "After a successful transaction, let the host perform its graceful restart and post-restart acknowledgement.",
     "Add failure-injection tests for checksum, staged version, installed version rollback, and concurrency."
   ],
+  "lifecycle": {
+    "inspect": [
+      "Compare the receipt's exact module version, updater construction, release naming, executable/install-kind routing, all update entry points, restart lifecycle, adapter artifacts, and every Updater invariant without checking or installing a new release."
+    ],
+    "validate": [
+      "Rerun exact-commit remote conformance plus host exact-plan, stable-only, asset, checksum, staged-version, rollback, locking, install-kind, restart, and acknowledgement tests; do not describe an unexecuted real Release or restart check as passed."
+    ],
+    "refine": [
+      "At the same source commit, close receipt gaps in shared-service routing, progress rendering, failure recovery, install-kind honesty, restart acknowledgement, or tests without duplicating update policy in host entry points."
+    ],
+    "upgrade": [
+      "Resolve one new CI-successful commit, compare public API, stages, sentinel errors, filesystem guarantees, GitHub source policy, delivery, and invariants before mutation, then upgrade all updater packages together and rerun host failure injection before updating the receipt source."
+    ],
+    "remove": [
+      "Disable discovery and every update entry point first, preserve any recovery backup for operator handling, remove only integration-managed adapter files and an otherwise-unused module dependency, run host verification, and retain a removed receipt with recovery evidence."
+    ]
+  },
   "verification": {
     "remote": [
       "GOWORK=off go test github.com/timmyagentic/awesome-agent-app-features/compat/v1",

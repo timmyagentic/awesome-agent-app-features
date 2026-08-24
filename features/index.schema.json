@@ -16,6 +16,8 @@
     "entrypoint",
     "resolution",
     "delivery",
+    "receipt",
+    "actions",
     "agent_flow",
     "features"
   ],
@@ -37,13 +39,21 @@
     "entrypoint": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "discovery_url", "integration_plan_schema"],
+      "required": [
+        "path",
+        "discovery_url",
+        "integration_plan_schema",
+        "integration_plan_example",
+        "integration_receipt_schema"
+      ],
       "properties": {
         "path": { "const": "features/index.json" },
         "discovery_url": {
           "const": "https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json"
         },
-        "integration_plan_schema": { "const": "features/integration-plan.schema.json" }
+        "integration_plan_schema": { "const": "features/integration-plan.schema.json" },
+        "integration_plan_example": { "const": "features/integration-plan.example.json" },
+        "integration_receipt_schema": { "const": "features/integration-receipt.schema.json" }
       }
     },
     "resolution": {
@@ -106,6 +116,59 @@
           "minItems": 4,
           "uniqueItems": true,
           "items": { "enum": ["user-clone", "git-submodule", "local-replace", "floating-main"] }
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_path", "example_path", "host_path_template", "retention", "contains_secrets"],
+      "properties": {
+        "schema_path": { "const": "features/integration-receipt.schema.json" },
+        "example_path": { "const": "examples/host-receipt/.agent-app-features/feedback.json" },
+        "host_path_template": { "const": ".agent-app-features/{feature}.json" },
+        "retention": { "const": "retain-removed-tombstone" },
+        "contains_secrets": { "const": false }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "receipt_precondition",
+          "mutation_scope",
+          "result",
+          "steps",
+          "completion"
+        ],
+        "properties": {
+          "id": {
+            "enum": ["integrate", "inspect", "validate", "refine", "upgrade", "remove", "list"]
+          },
+          "receipt_precondition": {
+            "enum": ["none", "absent-or-removed", "active-or-partial", "any-state"]
+          },
+          "mutation_scope": {
+            "enum": ["none", "receipt-only", "host-and-receipt"]
+          },
+          "result": { "type": "string", "minLength": 1 },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "completion": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          }
         }
       }
     },

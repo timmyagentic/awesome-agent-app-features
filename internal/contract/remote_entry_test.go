@@ -22,9 +22,11 @@ type remoteEntry struct {
 	Since            *string `json:"since"`
 	IntegrationModel string  `json:"integration_model"`
 	Entrypoint       struct {
-		Path                  string `json:"path"`
-		DiscoveryURL          string `json:"discovery_url"`
-		IntegrationPlanSchema string `json:"integration_plan_schema"`
+		Path                     string `json:"path"`
+		DiscoveryURL             string `json:"discovery_url"`
+		IntegrationPlanSchema    string `json:"integration_plan_schema"`
+		IntegrationPlanExample   string `json:"integration_plan_example"`
+		IntegrationReceiptSchema string `json:"integration_receipt_schema"`
 	} `json:"entrypoint"`
 	Resolution struct {
 		Provider     string `json:"provider"`
@@ -48,6 +50,21 @@ type remoteEntry struct {
 		AllowedModes      []string `json:"allowed_modes"`
 		Forbidden         []string `json:"forbidden"`
 	} `json:"delivery"`
+	Receipt struct {
+		SchemaPath       string `json:"schema_path"`
+		ExamplePath      string `json:"example_path"`
+		HostPathTemplate string `json:"host_path_template"`
+		Retention        string `json:"retention"`
+		ContainsSecrets  bool   `json:"contains_secrets"`
+	} `json:"receipt"`
+	Actions []struct {
+		ID                  string   `json:"id"`
+		ReceiptPrecondition string   `json:"receipt_precondition"`
+		MutationScope       string   `json:"mutation_scope"`
+		Result              string   `json:"result"`
+		Steps               []string `json:"steps"`
+		Completion          []string `json:"completion"`
+	} `json:"actions"`
 	AgentFlow []string `json:"agent_flow"`
 	Features  []struct {
 		ID       string `json:"id"`
@@ -58,9 +75,10 @@ type remoteEntry struct {
 }
 
 type integrationPlan struct {
-	SchemaURL string `json:"$schema"`
-	Schema    int    `json:"schema"`
-	Source    struct {
+	SchemaURL   string `json:"$schema"`
+	Schema      int    `json:"schema"`
+	ReceiptPath string `json:"receipt_path"`
+	Source      struct {
 		Repository     string `json:"repository"`
 		ResolvedCommit string `json:"resolved_commit"`
 		CIRunURL       string `json:"ci_run_url"`
@@ -120,7 +138,9 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 		t.Fatalf("unexpected entry identity: %+v", entry)
 	}
 	if entry.Entrypoint.Path != "features/index.json" ||
-		entry.Entrypoint.IntegrationPlanSchema != "features/integration-plan.schema.json" {
+		entry.Entrypoint.IntegrationPlanSchema != "features/integration-plan.schema.json" ||
+		entry.Entrypoint.IntegrationPlanExample != "features/integration-plan.example.json" ||
+		entry.Entrypoint.IntegrationReceiptSchema != "features/integration-receipt.schema.json" {
 		t.Fatalf("unexpected entrypoint: %+v", entry.Entrypoint)
 	}
 	if entry.Resolution.Provider != "github" ||
@@ -147,8 +167,47 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 	}
 	assertStringSet(t, "allowed delivery modes", entry.Delivery.AllowedModes, []string{"go-module", "source-subtree"})
 	assertStringSet(t, "forbidden integration paths", entry.Delivery.Forbidden, []string{"user-clone", "git-submodule", "local-replace", "floating-main"})
-	if len(entry.AgentFlow) < 7 {
+	if len(entry.AgentFlow) < 8 {
 		t.Fatalf("agent flow has %d steps", len(entry.AgentFlow))
+	}
+	if entry.Receipt.SchemaPath != entry.Entrypoint.IntegrationReceiptSchema ||
+		entry.Receipt.ExamplePath != "examples/host-receipt/.agent-app-features/feedback.json" ||
+		entry.Receipt.HostPathTemplate != ".agent-app-features/{feature}.json" ||
+		entry.Receipt.Retention != "retain-removed-tombstone" ||
+		entry.Receipt.ContainsSecrets {
+		t.Fatalf("unsafe receipt contract: %+v", entry.Receipt)
+	}
+	for _, relative := range []string{entry.Receipt.SchemaPath, entry.Receipt.ExamplePath} {
+		if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil || !info.Mode().IsRegular() {
+			t.Errorf("receipt resource %q is unavailable", relative)
+		}
+	}
+	expectedActions := map[string][3]string{
+		"integrate": {"absent-or-removed", "host-and-receipt", "active-or-partial-receipt"},
+		"inspect":   {"any-state", "none", "drift-report"},
+		"validate":  {"active-or-partial", "receipt-only", "updated-verification-evidence"},
+		"refine":    {"active-or-partial", "host-and-receipt", "improved-same-source-integration"},
+		"upgrade":   {"active-or-partial", "host-and-receipt", "integration-at-new-source"},
+		"remove":    {"active-or-partial", "host-and-receipt", "removed-receipt-tombstone"},
+		"list":      {"none", "none", "local-receipt-inventory"},
+	}
+	if len(entry.Actions) != len(expectedActions) {
+		t.Fatalf("action count = %d, want %d", len(entry.Actions), len(expectedActions))
+	}
+	for _, action := range entry.Actions {
+		expected, ok := expectedActions[action.ID]
+		if !ok {
+			t.Errorf("unexpected action %q", action.ID)
+			continue
+		}
+		delete(expectedActions, action.ID)
+		if action.ReceiptPrecondition != expected[0] || action.MutationScope != expected[1] || action.Result != expected[2] ||
+			len(action.Steps) == 0 || len(action.Completion) == 0 {
+			t.Errorf("invalid action contract: %+v", action)
+		}
+	}
+	if len(expectedActions) != 0 {
+		t.Errorf("missing actions: %v", expectedActions)
 	}
 
 	manifestPaths, err := filepath.Glob(filepath.Join(root, "features", "*", "feature.json"))
@@ -178,8 +237,10 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 			t.Errorf("entry/manifest mismatch for %q", feature.ID)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(entry.Entrypoint.IntegrationPlanSchema))); err != nil {
-		t.Fatalf("integration plan schema: %v", err)
+	for _, relative := range []string{entry.Entrypoint.IntegrationPlanSchema, entry.Entrypoint.IntegrationPlanExample} {
+		if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil || !info.Mode().IsRegular() {
+			t.Errorf("integration plan resource %q is unavailable", relative)
+		}
 	}
 }
 
@@ -198,6 +259,7 @@ func TestIntegrationPlanExampleIsStrictAndPinned(t *testing.T) {
 		t.Fatalf("CI evidence = %q, %q", plan.Source.CIRunURL, plan.Source.CIConclusion)
 	}
 	if plan.Source.EntryPath != "features/index.json" ||
+		plan.ReceiptPath != ".agent-app-features/"+plan.Feature.ID+".json" ||
 		plan.Source.ManifestPath != "features/"+plan.Feature.ID+"/feature.json" ||
 		plan.Feature.Contract != "v1" || len(plan.Feature.Deliveries) == 0 ||
 		len(plan.Mappings) == 0 || len(plan.Invariants) == 0 {
@@ -269,6 +331,10 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 	}
 	for _, required := range []string{
 		"features/index.json",
+		".receipt.schema_path",
+		".receipt.example_path",
+		".entrypoint.integration_plan_example",
+		".source.resolved_commit",
 		"same_commit_required",
 		"GOPROXY=direct go get",
 		"/compat/v1",

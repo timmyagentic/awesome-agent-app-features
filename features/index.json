@@ -11,7 +11,9 @@
   "entrypoint": {
     "path": "features/index.json",
     "discovery_url": "https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json",
-    "integration_plan_schema": "features/integration-plan.schema.json"
+    "integration_plan_schema": "features/integration-plan.schema.json",
+    "integration_plan_example": "features/integration-plan.example.json",
+    "integration_receipt_schema": "features/integration-receipt.schema.json"
   },
   "resolution": {
     "provider": "github",
@@ -35,6 +37,108 @@
     "allowed_modes": ["go-module", "source-subtree"],
     "forbidden": ["user-clone", "git-submodule", "local-replace", "floating-main"]
   },
+  "receipt": {
+    "schema_path": "features/integration-receipt.schema.json",
+    "example_path": "examples/host-receipt/.agent-app-features/feedback.json",
+    "host_path_template": ".agent-app-features/{feature}.json",
+    "retention": "retain-removed-tombstone",
+    "contains_secrets": false
+  },
+  "actions": [
+    {
+      "id": "integrate",
+      "receipt_precondition": "absent-or-removed",
+      "mutation_scope": "host-and-receipt",
+      "result": "active-or-partial-receipt",
+      "steps": [
+        "Resolve one CI-successful commit and create an integration plan.",
+        "Apply only declared deliveries and host mappings.",
+        "Write the receipt after verification, using partial when blockers remain."
+      ],
+      "completion": [
+        "The receipt records every manifest invariant and all verification evidence.",
+        "Active is allowed only when no invariant is blocked."
+      ]
+    },
+    {
+      "id": "inspect",
+      "receipt_precondition": "any-state",
+      "mutation_scope": "none",
+      "result": "drift-report",
+      "steps": [
+        "Compare an active, partial, or removed receipt with pinned source, target dependency, declared artifacts, and current host wiring."
+      ],
+      "completion": [
+        "Report source, file, invariant, verification, and unverified drift without changing host files."
+      ]
+    },
+    {
+      "id": "validate",
+      "receipt_precondition": "active-or-partial",
+      "mutation_scope": "receipt-only",
+      "result": "updated-verification-evidence",
+      "steps": [
+        "Rerun applicable remote and host checks at the receipt's exact source commit.",
+        "Update only sanitized verification, invariant evidence, unverified items, and history."
+      ],
+      "completion": [
+        "No failed check is recorded as passed and unavailable checks remain UNVERIFIED."
+      ]
+    },
+    {
+      "id": "refine",
+      "receipt_precondition": "active-or-partial",
+      "mutation_scope": "host-and-receipt",
+      "result": "improved-same-source-integration",
+      "steps": [
+        "Address host mapping gaps without changing the source commit.",
+        "Rerun affected checks and update artifacts, invariants, evidence, and history."
+      ],
+      "completion": [
+        "The receipt source commit is unchanged and every modified host path is recorded."
+      ]
+    },
+    {
+      "id": "upgrade",
+      "receipt_precondition": "active-or-partial",
+      "mutation_scope": "host-and-receipt",
+      "result": "integration-at-new-source",
+      "steps": [
+        "Resolve a new CI-successful commit and compare contracts before mutation.",
+        "Upgrade all selected deliveries to that same commit.",
+        "Migrate host adapters, rerun verification, and append source history."
+      ],
+      "completion": [
+        "The previous commit remains in history and mixed-source delivery is forbidden."
+      ]
+    },
+    {
+      "id": "remove",
+      "receipt_precondition": "active-or-partial",
+      "mutation_scope": "host-and-receipt",
+      "result": "removed-receipt-tombstone",
+      "steps": [
+        "Disable product entry points before removing implementation.",
+        "Remove only integration-managed, unshared artifacts and unused deliveries.",
+        "Run host verification and retain a removed receipt tombstone."
+      ],
+      "completion": [
+        "Shared host artifacts are retained, removed paths are recorded, and receipt state is removed."
+      ]
+    },
+    {
+      "id": "list",
+      "receipt_precondition": "none",
+      "mutation_scope": "none",
+      "result": "local-receipt-inventory",
+      "steps": [
+        "Read .agent-app-features receipts locally, including removed tombstones."
+      ],
+      "completion": [
+        "Report feature, state, contract, source commit, last action, and drift status without network or mutation."
+      ]
+    }
+  ],
   "agent_flow": [
     "Resolve bootstrap_ref to one full commit SHA before reading feature files.",
     "Require the configured CI workflow to be completed successfully for that commit.",
@@ -42,7 +146,8 @@
     "Inspect the target project and produce an integration plan using integration_plan_schema.",
     "Add only the delivery items declared by the selected feature.",
     "Implement product-specific UI, authorization, configuration, and lifecycle code in the target project.",
-    "Run the feature verification and target-project verification, then report every unverified boundary."
+    "Run the feature verification and target-project verification, then report every unverified boundary.",
+    "Persist a sanitized receipt and use typed actions for every later lifecycle operation."
   ],
   "features": [
     {

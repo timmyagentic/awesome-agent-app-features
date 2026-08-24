@@ -38,6 +38,15 @@ UI framework, or Codex Skills collection.
 - Every remote resource and delivery item in one integration must resolve from
   the same full commit SHA after successful CI. Keep entry, feature, plan, and
   delivery schemas under strict contract tests.
+- Preserve the typed lifecycle actions in the remote entry. They are protocol
+  operations, not Skills or free-form shell commands.
+- Host integrations leave a sanitized `.agent-app-features/<feature>.json`
+  receipt. It may contain relative paths, configuration key names, invariant
+  evidence, verification, and history; it must not contain values, credentials,
+  payloads, logs, identifiers, absolute paths, or copied source.
+- Active receipts require all invariants plus remote and host proof. Partial
+  receipts retain blockers honestly. Remove keeps a tombstone and never deletes
+  host-shared artifacts.
 
 ## Verification
 

@@ -2,25 +2,25 @@
 
 [中文](README.md) · [Agent integration](docs/agent-integration.en.md) · [Compatibility](COMPATIBILITY.md) · [Security](docs/security.md)
 
-Headless feature-foundation code for agent applications and an agent-driven feature integrator. The user stays in the target project and tells a coding agent which feature to integrate, inspect, refine, upgrade, or remove. The agent resolves the official remote entry to one commit SHA, adds only the declared dependency or template, and continuously maintains the host-specific adapter. Cards, commands, authorization, localization, restart behavior, and product flow remain in the host.
+Headless feature-foundation code for agent applications. The user stays in the target project while a coding agent integrates low-level capabilities from remote contracts. Cards, commands, authorization, localization, install kinds, and product flow remain host-owned.
 
-This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The currently unreleased `v1` contract stabilizes three integration outcomes:
+This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The currently unreleased `v1` covers three capabilities:
 
-| Capability | This repository provides | The host product provides |
+| Capability | This repository provides | The host provides |
 | --- | --- | --- |
-| Agent-friendly integration | Remote entry, typed actions, manifests, host plan/receipt schemas, examples, API/consumer contracts, and verification commands | Glue code fitted to the existing architecture, durable receipt, and host tests |
-| Feedback | Redacted `Draft`, non-serializable preview, explicit `Approved`, Feedback v1 HTTPS client, single-tenant Cloudflare relay | Trigger timing, Feishu/Slack/CLI/web rendering, confirmation, and failure UX |
-| Updater | Immutable exact plan, stable-only selection, same-release checksum, two version checks, locks, no-clobber backup, and rollback | Update prompt, authorization, install-kind detection, restart, and acknowledgement |
+| Agent-friendly integration | Remote entry, manifests, exact-SHA delivery, minimal lock, contract tests | Thin adapters fitted to the existing architecture and host tests |
+| Feedback | Redacted Draft, explicit Approved, HTTPS client, single-tenant Relay | Trigger, preview UI, confirmation, and failure UX |
+| Updater | Exact plan, stable-only selection, checksum, two version checks, locks, backup, rollback | Prompt, authorization, install-kind routing, restart, acknowledgement |
 
 ## No-clone integration
 
-The canonical machine-readable entry is [features/index.json](features/index.json). Its public discovery URL is:
+The single machine-readable entry is [features/index.json](features/index.json):
 
 ```text
 https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json
 ```
 
-`main` is discovery-only. The agent must resolve it to a full commit SHA, require successful `CI` for that commit, then refetch the entry, feature manifest, documentation, and source subtree from that same SHA. The user does not clone this repository, and the target project must not use a Git submodule, local `replace`, or floating `main`.
+`main` is discovery-only. The agent resolves a full commit SHA, requires successful `CI` for that commit, then fetches the entry, manifest, documentation, dependency, and source subtree from the same SHA. The target must not use a Git submodule, local `replace`, or floating `main`.
 
 Give the agent this instruction from inside the target project:
 
@@ -30,30 +30,24 @@ into the current project. Official entry:
 https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json
 
 Do not ask me to clone the repository. Resolve main to a full commit SHA and
-require successful CI for that SHA. Pin the entry, manifest, documentation,
-dependency, and template to the same SHA. First map the host using the
-integration-plan schema, then implement the thin adapter and tests. Preserve
-every invariant and mark unavailable client, credential, deployment, or
-restart checks as UNVERIFIED. Write the sanitized integration record to
-.agent-app-features/<feature>.json.
+require successful CI for that SHA. Pin every resource to the same SHA. First
+inventory the host and map feature responsibilities, invariants, and checks;
+then implement the thinnest adapter. Mark unavailable client, credential,
+deployment, or restart checks UNVERIFIED. Finally write a secret-free
+agent-app-features.lock.json.
 ```
 
-No version has been published yet. To evaluate the current v1 contract, use Go 1.25 or newer and pin an exact reviewed commit SHA rather than floating `main`:
+No version has been published. Evaluate the current code with Go 1.25 or newer and an exact reviewed commit SHA:
 
 ```bash
-go get github.com/timmyagentic/awesome-agent-app-features@<agent-resolved-commit-sha>
+go get github.com/timmyagentic/awesome-agent-app-features@<resolved-commit-sha>
+go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@<resolved-commit-sha>
+go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@<resolved-commit-sha>
 ```
 
-The agent runs this inside the target project. Go downloads the module into its cache; it does not create a working copy of this repository. Before changing the host, the agent can run both zero-configuration examples remotely:
+Go uses its module cache and creates no working copy of this repository. The Updater demo replaces only a fake executable in a temporary directory; it contacts no Release and touches no installed product.
 
-```bash
-go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@<agent-resolved-commit-sha>
-go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@<agent-resolved-commit-sha>
-```
-
-The updater demo replaces only a fake executable in a temporary directory. It does not contact GitHub Releases or touch an installed product. See the [agent integration guide](docs/agent-integration.en.md) and [integration plan schema](features/integration-plan.schema.json) for the complete protocol.
-
-The supported v1 packages are:
+The public Go packages are:
 
 ```text
 feedback
@@ -81,17 +75,14 @@ renderEveryField(draft.Report()) // host-owned card, text, CLI, or web UI
 if !userExplicitlyConfirmed() {
     return nil
 }
-
 approved, err := draft.Approve(true)
 if err != nil {
     return err
 }
-submissionReceipt, err := (httpclient.Client{
-    Endpoint: "https://feedback.example/v1/feedback",
-}).Submit(ctx, approved)
+_, err = (httpclient.Client{Endpoint: feedbackEndpoint}).Submit(ctx, approved)
 ```
 
-`Report` is a deep copy and standard JSON encoding returns `ErrApprovalRequired`; only opaque `Approved` emits a schema 1 wire payload. The core creates no issue title, Markdown body, card, or copy. The reference relay fixes the GitHub repository and token server-side, so a client cannot choose the destination. Shared protocol fixtures live in [protocol/feedback/v1](protocol/feedback/v1).
+`Report` is a deep copy and cannot be JSON-marshaled; only opaque `Approved` emits Feedback v1 JSON. The core creates no issue title, Markdown, card, or copy. The reference Relay fixes the GitHub repository and token server-side. See [protocol/feedback/v1](protocol/feedback/v1) for the wire contract.
 
 ## Updater
 
@@ -102,9 +93,7 @@ service, err := updater.New(updater.Config{
     ExecutablePath: executablePath,
     BinaryName:     "my-agent-app",
     AssetName:      updater.ReleaseArchiveName("my-agent-app"),
-    Source: updatergithub.Source{
-        Repository: "owner/my-agent-app",
-    },
+    Source: updatergithub.Source{Repository: "owner/my-agent-app"},
     Verifier: updater.ExactVersionLine("my-agent-app"),
     Progress: renderProgress,
 })
@@ -120,73 +109,43 @@ renderExactUpdate(plan.Release(), plan.ArchiveAsset())
 if !userExplicitlyConfirmed() {
     return nil
 }
-result, err := service.Apply(ctx, plan)
+_, err = service.Apply(ctx, plan)
 ```
 
-Import both `updater` and `updater/github`. `Prepare` pins the release, archive, archive binary name, and checksum. `Apply` executes only that plan and never resolves latest again. A later successful `Prepare` makes an older plan return `ErrPlanSuperseded`. An already-authorized, non-interactive CLI or administrator action may use `UpdateLatest`.
+`Prepare` pins the release, archive, archive binary name, and checksum. `Apply` executes only that plan and never resolves latest again. Standalone in-place replacement supports macOS/Linux only; npm, Homebrew, Windows, and other install kinds require host adapters. See the [Updater contract](docs/updater-contract.md).
 
-The default archive name is `<product>-<tag>-<os>-<arch>.tar.gz` (zip on Windows), with `checksums.txt` as the default manifest. Use `ArchiveBinaryName` when the binary inside the archive changes by tag or platform. In-place standalone replacement is supported on macOS/Linux and rejects symlink executables. npm, Homebrew, and Windows require host-owned install adapters.
+## Integration record
 
-## Agent integration protocol
+After integration, the agent maintains one visible `agent-app-features.lock.json` in the target root. [integration-lock.schema.json](features/integration-lock.schema.json) records only:
 
-The agent uses [features/index.json](features/index.json) as the only entry and fetches the selected `features/<id>/feature.json`, README, and delivery items from the same commit SHA. It first maps the host's UI, authorization, version truth, release assets, install kinds, and lifecycle with [integration-plan.schema.json](features/integration-plan.schema.json), then changes the target project.
+- this repository and the full commit SHA;
+- feature, contract, and actual deliveries;
+- relative files changed by the agent;
+- checks run, verification time, and `UNVERIFIED` boundaries.
 
-A `go-module` delivery adds the exact SHA as a dependency. A `source-subtree` delivery extracts only the declared directory from the same-SHA GitHub archive or Contents API into host infrastructure. The agent may use temporary downloads or language package caches internally, but the user never manages a second checkout of this repository.
+It stores no configuration values, credentials, payloads, logs, user IDs, absolute paths, runtime state, or removal history. Update it during upgrades; combine it with current code and Git history when inspecting or removing an integration. The lock is a maintenance clue, not a substitute for host tests or deployment authorization.
 
-After a complete or partial integration, the agent writes `.agent-app-features/<feature>.json` against [integration-receipt.schema.json](features/integration-receipt.schema.json). The receipt records exact source/CI, selected delivery, host entry points and configuration key names, integration files, every invariant, verification evidence, `UNVERIFIED` boundaries, and history. It never stores configuration values, credentials, payloads, logs, user IDs, or absolute paths.
+## Boundaries and gates
 
-## Lifecycle
-
-The remote entry defines seven typed Agent actions:
-
-| Action | Purpose | Mutation scope |
-| --- | --- | --- |
-| `integrate` | First integration or re-integration from a removed tombstone | Host + receipt |
-| `inspect` | Compare receipt, dependencies, files, and wiring for drift | Read-only |
-| `validate` | Rerun exact-source remote/host checks and refresh evidence | Receipt only |
-| `refine` | Close host UX, mapping, and test gaps at the same source commit | Host + receipt |
-| `upgrade` | Compare contracts and move every delivery to one new SHA | Host + receipt |
-| `remove` | Remove only unshared integration-managed artifacts | Host + removed receipt |
-| `list` | Inventory active, partial, and removed local receipts | Read-only |
-
-An `active` receipt cannot contain a blocked invariant and must include successful remote and host verification. Work with blockers remains `partial`. Removal retains a `state: removed` audit tombstone. See the complete [host receipt example](examples/host-receipt/).
-
-A host Feishu card is only a renderer for `Report`, `Plan`, or `Event`; it does not belong in this repository. See [docs/architecture.md](docs/architecture.md) for the ownership model.
-
-## Security boundaries
-
-- Resolve the remote entry to a full commit SHA; entry, manifest, dependency, examples, and templates must use that same CI-successful SHA.
-- Receipts contain only relative paths, configuration key names, and sanitized evidence—never values, credentials, identifiers, payloads, or raw logs.
-- Feedback is never sent in the background; `Approved` must follow an explicit user action.
-- Default redaction, fixed environment allowlists, and UTF-8 byte limits are enforced in both Go and the relay.
-- Ordinary updates accept only exact `v?X.Y.Z` stable tags; drafts, prereleases, and leading-zero versions fail closed.
-- The checksum is pinned during `Prepare`; the archive is verified before extraction, execution, or replacement.
-- Both staged and installed binaries must report the exact target version, otherwise mutation is refused or rolled back.
-- Lock-file symlinks, executable symlinks, and existing recovery backups fail closed.
-- A checksum proves content consistency, not publisher identity; high-risk products still need an independent signature or provenance root.
-
-## Layout and gates
+- A Feishu card or other product UI is a host renderer for `Report`, `Plan`, or `Event`; it never belongs here.
+- Feedback is never submitted in the background; the Relay validates schema, approval, and byte limits again.
+- Updater accepts stable tags only, pins checksum before confirmation, and refuses or rolls back version mismatches.
+- Core packages use only the Go standard library. Infrastructure adapters depend inward; cores do not depend outward.
+- Source-subtree delivery extracts only a declared directory and rejects traversal and symlinks.
 
 ```text
-api/v1.txt                    v1 public API snapshot
-compat/v1                     external-consumer compile contract
-features/index.json           single no-clone remote agent entry
-features/*.schema.json        entry, feature, host-plan, and receipt contracts
-features/*/feature.json       agent-readable integration manifests
-examples/host-receipt/        target .agent-app-features receipt example
-feedback/                     provider-neutral Feedback core
-feedback/httpclient/          Feedback v1 HTTPS adapter
-protocol/feedback/v1/         JSON Schema and shared Go/JS fixtures
-updater/                      stable standalone transaction core
-updater/github/               GitHub Releases source adapter
-relay/cloudflare/             runnable single-tenant GitHub Issues relay
-examples/updater-demo/        offline transaction against temporary files
+api/v1.txt                         public API snapshot
+compat/v1                          external-consumer contract
+features/index.json                single remote Agent entry
+features/integration-lock.schema.json  minimal host lock
+features/*/feature.json            Feature manifests
+feedback/                          Feedback core
+updater/                           Updater core
+relay/cloudflare/                  single-tenant GitHub Issues Relay
 ```
 
 ```bash
 make verify
 ```
 
-Once published, `v1` follows SemVer. Rules for public APIs, wire protocols, and manifest invariants are in [COMPATIBILITY.md](COMPATIBILITY.md).
-
-This project was extracted from the Feedback and unified updater paths in [CC Connect Next](https://github.com/timmyagentic/cc-connect-next), retaining only the reusable foundation. MIT License.
+See [architecture](docs/architecture.md) for ownership details. This project extracts only the reusable Feedback and unified updater foundation from [CC Connect Next](https://github.com/timmyagentic/cc-connect-next). MIT License.

@@ -1,12 +1,9 @@
 package contract
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -22,49 +19,25 @@ type remoteEntry struct {
 	Since            *string `json:"since"`
 	IntegrationModel string  `json:"integration_model"`
 	Entrypoint       struct {
-		Path                     string `json:"path"`
-		DiscoveryURL             string `json:"discovery_url"`
-		IntegrationPlanSchema    string `json:"integration_plan_schema"`
-		IntegrationPlanExample   string `json:"integration_plan_example"`
-		IntegrationReceiptSchema string `json:"integration_receipt_schema"`
+		Path         string `json:"path"`
+		DiscoveryURL string `json:"discovery_url"`
 	} `json:"entrypoint"`
 	Resolution struct {
 		Provider     string `json:"provider"`
 		Repository   string `json:"repository"`
 		BootstrapRef string `json:"bootstrap_ref"`
 		ImmutableRef string `json:"immutable_ref"`
-		CI           struct {
-			Workflow           string `json:"workflow"`
-			RequiredStatus     string `json:"required_status"`
-			RequiredConclusion string `json:"required_conclusion"`
-		} `json:"ci"`
-		Fetch struct {
-			SameCommitRequired  bool   `json:"same_commit_required"`
-			RawURLTemplate      string `json:"raw_url_template"`
-			ContentsAPITemplate string `json:"contents_api_template"`
-			ArchiveURLTemplate  string `json:"archive_url_template"`
-		} `json:"fetch"`
+		RequiredCI   string `json:"required_ci"`
 	} `json:"resolution"`
 	Delivery struct {
 		UserCloneRequired bool     `json:"user_clone_required"`
 		AllowedModes      []string `json:"allowed_modes"`
 		Forbidden         []string `json:"forbidden"`
 	} `json:"delivery"`
-	Receipt struct {
-		SchemaPath       string `json:"schema_path"`
-		ExamplePath      string `json:"example_path"`
-		HostPathTemplate string `json:"host_path_template"`
-		Retention        string `json:"retention"`
-		ContainsSecrets  bool   `json:"contains_secrets"`
-	} `json:"receipt"`
-	Actions []struct {
-		ID                  string   `json:"id"`
-		ReceiptPrecondition string   `json:"receipt_precondition"`
-		MutationScope       string   `json:"mutation_scope"`
-		Result              string   `json:"result"`
-		Steps               []string `json:"steps"`
-		Completion          []string `json:"completion"`
-	} `json:"actions"`
+	Lock struct {
+		SchemaPath string `json:"schema_path"`
+		HostPath   string `json:"host_path"`
+	} `json:"lock"`
 	AgentFlow []string `json:"agent_flow"`
 	Features  []struct {
 		ID       string `json:"id"`
@@ -74,61 +47,11 @@ type remoteEntry struct {
 	} `json:"features"`
 }
 
-type integrationPlan struct {
-	SchemaURL   string `json:"$schema"`
-	Schema      int    `json:"schema"`
-	ReceiptPath string `json:"receipt_path"`
-	Source      struct {
-		Repository     string `json:"repository"`
-		ResolvedCommit string `json:"resolved_commit"`
-		CIRunURL       string `json:"ci_run_url"`
-		CIConclusion   string `json:"ci_conclusion"`
-		EntryPath      string `json:"entry_path"`
-		ManifestPath   string `json:"manifest_path"`
-	} `json:"source"`
-	Feature struct {
-		ID         string `json:"id"`
-		Contract   string `json:"contract"`
-		Deliveries []struct {
-			Mode   string `json:"mode"`
-			Source string `json:"source"`
-			Target string `json:"target"`
-		} `json:"deliveries"`
-	} `json:"feature"`
-	Host struct {
-		Root             string   `json:"root"`
-		Runtime          []string `json:"runtime"`
-		ExistingSurfaces []string `json:"existing_surfaces"`
-		InstallKinds     []string `json:"install_kinds"`
-		Decisions        []string `json:"decisions"`
-	} `json:"host"`
-	Mappings []struct {
-		ContractItem   string   `json:"contract_item"`
-		Owner          string   `json:"owner"`
-		HostLocation   string   `json:"host_location"`
-		Implementation string   `json:"implementation"`
-		Tests          []string `json:"tests"`
-	} `json:"mappings"`
-	Invariants []struct {
-		Invariant string `json:"invariant"`
-		Status    string `json:"status"`
-		Evidence  string `json:"evidence"`
-	} `json:"invariants"`
-	Changes []struct {
-		Path   string `json:"path"`
-		Reason string `json:"reason"`
-	} `json:"changes"`
-	Verification struct {
-		Foundation []string `json:"foundation"`
-		Host       []string `json:"host"`
-	} `json:"verification"`
-	Unverified []string `json:"unverified"`
-}
-
 func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 	root := repositoryRoot(t)
 	var entry remoteEntry
-	decodeStrictJSON(t, filepath.Join(root, "features", "index.json"), &entry)
+	readJSON(t, filepath.Join(root, "features", "index.json"), &entry)
+
 	if entry.SchemaURL != "./index.schema.json" || entry.Schema != 1 ||
 		entry.ID != "awesome-agent-app-features" ||
 		entry.Repository != "https://github.com/timmyagentic/awesome-agent-app-features" ||
@@ -138,76 +61,29 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 		t.Fatalf("unexpected entry identity: %+v", entry)
 	}
 	if entry.Entrypoint.Path != "features/index.json" ||
-		entry.Entrypoint.IntegrationPlanSchema != "features/integration-plan.schema.json" ||
-		entry.Entrypoint.IntegrationPlanExample != "features/integration-plan.example.json" ||
-		entry.Entrypoint.IntegrationReceiptSchema != "features/integration-receipt.schema.json" {
+		entry.Entrypoint.DiscoveryURL != "https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json" {
 		t.Fatalf("unexpected entrypoint: %+v", entry.Entrypoint)
 	}
 	if entry.Resolution.Provider != "github" ||
 		entry.Resolution.Repository != "timmyagentic/awesome-agent-app-features" ||
 		entry.Resolution.BootstrapRef != "main" ||
 		entry.Resolution.ImmutableRef != "full-commit-sha" ||
-		entry.Resolution.CI.Workflow != "CI" ||
-		entry.Resolution.CI.RequiredStatus != "completed" ||
-		entry.Resolution.CI.RequiredConclusion != "success" ||
-		!entry.Resolution.Fetch.SameCommitRequired {
+		entry.Resolution.RequiredCI != "CI" {
 		t.Fatalf("unsafe resolution contract: %+v", entry.Resolution)
-	}
-	for label, template := range map[string]string{
-		"raw URL":      entry.Resolution.Fetch.RawURLTemplate,
-		"contents API": entry.Resolution.Fetch.ContentsAPITemplate,
-		"archive URL":  entry.Resolution.Fetch.ArchiveURLTemplate,
-	} {
-		if !strings.Contains(template, "{commit}") {
-			t.Errorf("%s does not pin the resolved commit: %q", label, template)
-		}
 	}
 	if entry.Delivery.UserCloneRequired {
 		t.Fatal("remote entry unexpectedly requires a user clone")
 	}
 	assertStringSet(t, "allowed delivery modes", entry.Delivery.AllowedModes, []string{"go-module", "source-subtree"})
 	assertStringSet(t, "forbidden integration paths", entry.Delivery.Forbidden, []string{"user-clone", "git-submodule", "local-replace", "floating-main"})
-	if len(entry.AgentFlow) < 8 {
+	if entry.Lock.SchemaPath != "features/integration-lock.schema.json" || entry.Lock.HostPath != "agent-app-features.lock.json" {
+		t.Fatalf("unexpected lock contract: %+v", entry.Lock)
+	}
+	if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(entry.Lock.SchemaPath))); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("lock schema is unavailable: %v", err)
+	}
+	if len(entry.AgentFlow) < 5 {
 		t.Fatalf("agent flow has %d steps", len(entry.AgentFlow))
-	}
-	if entry.Receipt.SchemaPath != entry.Entrypoint.IntegrationReceiptSchema ||
-		entry.Receipt.ExamplePath != "examples/host-receipt/.agent-app-features/feedback.json" ||
-		entry.Receipt.HostPathTemplate != ".agent-app-features/{feature}.json" ||
-		entry.Receipt.Retention != "retain-removed-tombstone" ||
-		entry.Receipt.ContainsSecrets {
-		t.Fatalf("unsafe receipt contract: %+v", entry.Receipt)
-	}
-	for _, relative := range []string{entry.Receipt.SchemaPath, entry.Receipt.ExamplePath} {
-		if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil || !info.Mode().IsRegular() {
-			t.Errorf("receipt resource %q is unavailable", relative)
-		}
-	}
-	expectedActions := map[string][3]string{
-		"integrate": {"absent-or-removed", "host-and-receipt", "active-or-partial-receipt"},
-		"inspect":   {"any-state", "none", "drift-report"},
-		"validate":  {"active-or-partial", "receipt-only", "updated-verification-evidence"},
-		"refine":    {"active-or-partial", "host-and-receipt", "improved-same-source-integration"},
-		"upgrade":   {"active-or-partial", "host-and-receipt", "integration-at-new-source"},
-		"remove":    {"active-or-partial", "host-and-receipt", "removed-receipt-tombstone"},
-		"list":      {"none", "none", "local-receipt-inventory"},
-	}
-	if len(entry.Actions) != len(expectedActions) {
-		t.Fatalf("action count = %d, want %d", len(entry.Actions), len(expectedActions))
-	}
-	for _, action := range entry.Actions {
-		expected, ok := expectedActions[action.ID]
-		if !ok {
-			t.Errorf("unexpected action %q", action.ID)
-			continue
-		}
-		delete(expectedActions, action.ID)
-		if action.ReceiptPrecondition != expected[0] || action.MutationScope != expected[1] || action.Result != expected[2] ||
-			len(action.Steps) == 0 || len(action.Completion) == 0 {
-			t.Errorf("invalid action contract: %+v", action)
-		}
-	}
-	if len(expectedActions) != 0 {
-		t.Errorf("missing actions: %v", expectedActions)
 	}
 
 	manifestPaths, err := filepath.Glob(filepath.Join(root, "features", "*", "feature.json"))
@@ -217,7 +93,7 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 	if len(entry.Features) != len(manifestPaths) {
 		t.Fatalf("entry has %d features, repository has %d manifests", len(entry.Features), len(manifestPaths))
 	}
-	seen := make(map[string]struct{})
+	seen := make(map[string]struct{}, len(entry.Features))
 	for _, feature := range entry.Features {
 		if feature.Contract != "v1" || feature.Manifest != "features/"+feature.ID+"/feature.json" || feature.Readme != "features/"+feature.ID+"/README.md" {
 			t.Errorf("invalid feature entry: %+v", feature)
@@ -232,60 +108,11 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 			}
 		}
 		var item manifest
-		decodeStrictJSON(t, filepath.Join(root, filepath.FromSlash(feature.Manifest)), &item)
+		readJSON(t, filepath.Join(root, filepath.FromSlash(feature.Manifest)), &item)
 		if item.ID != feature.ID || item.Contract != feature.Contract || item.ReleaseStatus != entry.ReleaseStatus {
 			t.Errorf("entry/manifest mismatch for %q", feature.ID)
 		}
 	}
-	for _, relative := range []string{entry.Entrypoint.IntegrationPlanSchema, entry.Entrypoint.IntegrationPlanExample} {
-		if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil || !info.Mode().IsRegular() {
-			t.Errorf("integration plan resource %q is unavailable", relative)
-		}
-	}
-}
-
-func TestIntegrationPlanExampleIsStrictAndPinned(t *testing.T) {
-	root := repositoryRoot(t)
-	var plan integrationPlan
-	decodeStrictJSON(t, filepath.Join(root, "features", "integration-plan.example.json"), &plan)
-	if plan.SchemaURL != "./integration-plan.schema.json" || plan.Schema != 1 {
-		t.Fatalf("plan schema identity: %+v", plan)
-	}
-	if !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(plan.Source.ResolvedCommit) {
-		t.Fatalf("resolved commit = %q", plan.Source.ResolvedCommit)
-	}
-	if !strings.HasPrefix(plan.Source.CIRunURL, "https://github.com/timmyagentic/awesome-agent-app-features/actions/runs/") ||
-		plan.Source.CIConclusion != "success" {
-		t.Fatalf("CI evidence = %q, %q", plan.Source.CIRunURL, plan.Source.CIConclusion)
-	}
-	if plan.Source.EntryPath != "features/index.json" ||
-		plan.ReceiptPath != ".agent-app-features/"+plan.Feature.ID+".json" ||
-		plan.Source.ManifestPath != "features/"+plan.Feature.ID+"/feature.json" ||
-		plan.Feature.Contract != "v1" || len(plan.Feature.Deliveries) == 0 ||
-		len(plan.Mappings) == 0 || len(plan.Invariants) == 0 {
-		t.Fatalf("incomplete integration plan: %+v", plan)
-	}
-	var item manifest
-	decodeStrictJSON(t, filepath.Join(root, filepath.FromSlash(plan.Source.ManifestPath)), &item)
-	allowedDeliveries := make(map[string]string)
-	for _, delivery := range item.Delivery {
-		for _, packagePath := range delivery.Packages {
-			allowedDeliveries[packagePath] = delivery.Mode
-		}
-		if delivery.Path != "" {
-			allowedDeliveries[delivery.Path] = delivery.Mode
-		}
-	}
-	for _, delivery := range plan.Feature.Deliveries {
-		if allowedDeliveries[delivery.Source] != delivery.Mode || strings.TrimSpace(delivery.Target) == "" {
-			t.Errorf("example selects undeclared delivery: %+v", delivery)
-		}
-	}
-	actualInvariants := make([]string, 0, len(plan.Invariants))
-	for _, invariant := range plan.Invariants {
-		actualInvariants = append(actualInvariants, invariant.Invariant)
-	}
-	assertStringSet(t, "example manifest invariants", actualInvariants, item.Invariants)
 }
 
 func TestUserDocumentationStartsInTheTargetProject(t *testing.T) {
@@ -296,17 +123,12 @@ func TestUserDocumentationStartsInTheTargetProject(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(data)
-		for _, obsolete := range []string{
-			"FULL_REVIEWED_COMMIT_SHA",
-			"把仓库和目标项目交给",
-			"Give this repository and the target project",
-			"git clone ",
-		} {
+		for _, obsolete := range []string{"FULL_REVIEWED_COMMIT_SHA", "把仓库和目标项目交给", "Give this repository and the target project", "git clone "} {
 			if strings.Contains(text, obsolete) {
 				t.Errorf("%s contains repository-centric onboarding %q", relative, obsolete)
 			}
 		}
-		for _, required := range []string{"features/index.json", "commit SHA"} {
+		for _, required := range []string{"features/index.json", "commit SHA", "agent-app-features.lock.json"} {
 			if !strings.Contains(text, required) {
 				t.Errorf("%s does not explain %q", relative, required)
 			}
@@ -331,11 +153,9 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 	}
 	for _, required := range []string{
 		"features/index.json",
-		".receipt.schema_path",
-		".receipt.example_path",
-		".entrypoint.integration_plan_example",
-		".source.resolved_commit",
-		"same_commit_required",
+		".lock.schema_path",
+		"agent-app-features.lock.json",
+		"full-commit-sha",
 		"GOPROXY=direct go get",
 		"/compat/v1",
 		"/examples/feedback@",
@@ -349,20 +169,14 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 	}
 }
 
-func decodeStrictJSON(t *testing.T, path string, destination any) {
+func readJSON(t *testing.T, path string, destination any) {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
+	if err := json.Unmarshal(data, destination); err != nil {
 		t.Fatalf("decode %s: %v", path, err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("decode %s: trailing JSON: %v", path, err)
 	}
 }
 

@@ -20,7 +20,6 @@ const GITHUB_TIMEOUT_MS = 15_000;
 const ALLOWED_FIELDS = new Set([
   "schema",
   "user_approved",
-  "install_id",
   "environment",
   "description",
   "recent_error",
@@ -126,14 +125,6 @@ function validateSubmission(value) {
   }
   if (value.user_approved !== true) {
     return "explicit user approval is required";
-  }
-  if (value.install_id !== undefined) {
-    if (!validShortString(value.install_id)) {
-      return "install_id is too large or invalid";
-    }
-    if (!/^[A-Za-z0-9._-]{1,64}$/.test(value.install_id)) {
-      return "install_id has invalid characters";
-    }
   }
   if (!isObject(value.environment)) {
     return "environment is required";
@@ -465,11 +456,7 @@ async function handle(request, env) {
   }
 
   const connectingIP = request.headers.get("cf-connecting-ip")?.trim().slice(0, 128);
-  const clientKey = connectingIP
-    ? `ip:${connectingIP}`
-    : submission.install_id
-      ? `install:${submission.install_id}`
-      : "unknown";
+  const clientKey = connectingIP ? `ip:${connectingIP}` : "unknown";
   if (await rateLimited(env, clientKey)) {
     return json(429, { error: "rate limited" });
   }

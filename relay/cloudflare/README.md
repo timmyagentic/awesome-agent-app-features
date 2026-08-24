@@ -36,7 +36,7 @@ Clients cannot send issue title/body, label, repository, or token. The Worker va
 
 The fingerprint uses provider-neutral report content. Matching open issues receive a `+1` environment comment. GitHub search is eventually consistent, so this is best effort rather than a uniqueness guarantee.
 
-The rate-limit key prefers Cloudflare's connecting IP and falls back to the optional random install ID. The included binding allows five requests per 60 seconds. Counters are data-center local/eventually consistent and shared IPs can over-limit; treat it as an abuse brake.
+The rate-limit key uses Cloudflare's connecting IP when available and one shared fallback bucket otherwise. The included binding allows five requests per 60 seconds. Counters are data-center local/eventually consistent and shared IPs can over-limit; treat it as an abuse brake.
 
 ## Verification
 
@@ -52,4 +52,4 @@ The Worker has structured error logging, bounded request/upstream reads, a 15-se
 
 The copied subtree becomes host-owned infrastructure. Future updates must repeat the same immutable-ref extraction and review rather than following floating `main`; no production deployment is implied by adding the files.
 
-An integration receipt may record the subtree source and target, relative artifact path, configuration key names, source CI, and verification status. It must never record `GITHUB_TOKEN`, endpoint values, repository credentials, issue payloads, or raw Worker logs.
+The host's `agent-app-features.lock.json` may record the subtree source and target, relative files, and verification commands. It must never record `GITHUB_TOKEN`, endpoint values, repository credentials, issue payloads, or raw Worker logs.

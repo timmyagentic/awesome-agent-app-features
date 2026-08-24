@@ -1,10 +1,10 @@
 # Feature foundation architecture
 
-This repository is a headless feature foundation, not a product framework. A coding agent maps stable cores and generic infrastructure adapters into a host repository; the host keeps every product and channel decision.
+This repository is a headless capability foundation, not a product framework. A coding agent maps stable cores and generic infrastructure adapters into a host repository; the host keeps product and channel decisions.
 
 ```text
 host product
-  intent / authorization / cards / CLI / web / i18n / lifecycle
+  intent / authorization / cards / CLI / web / i18n / restart
                               |
                        thin host adapter
                               |
@@ -18,13 +18,13 @@ host product
 
 | Foundation | Host |
 | --- | --- |
-| Provider-neutral data, opaque state, sentinel errors | Product flow, user-facing copy, cards, buttons, commands |
-| Security policy and deterministic transactions | Intent detection, administrator policy, configuration UX |
+| Provider-neutral data, opaque state, sentinel errors | Product flow, copy, cards, buttons, commands |
+| Security policy and deterministic transactions | Intent, authorization, configuration UX |
 | HTTP, GitHub Release, and filesystem adapters | Install-kind selection, restart, acknowledgement |
-| Neutral progress events and structured results | Channel SDKs, localization, analytics, support workflow |
-| Manifests, actions, plan/receipt schemas, examples, shared fixtures, API/consumer gates | Glue code, sanitized receipt, and host-specific regression/E2E tests |
+| Neutral events and structured results | Channel SDKs, localization, analytics |
+| Remote manifests, lock schema, examples, API and wire gates | Thin glue, visible lock, host regression and E2E tests |
 
-A Feishu card or terminal prompt is always a host renderer. A GitHub release source or HTTPS transport can live here because it implements a provider port without choosing the host experience.
+A Feishu card or terminal prompt is always a host renderer. A GitHub Release source or HTTPS transport may live here because it implements a generic port without choosing host experience.
 
 ## Dependency direction
 
@@ -36,23 +36,21 @@ relay/cloudflare -> Feedback v1 protocol               v
                                              Source port in updater core
 ```
 
-Core packages import only the Go standard library. `feedback` knows nothing about HTTP or GitHub. `updater` knows nothing about GitHub. Infrastructure adapters depend inward on their core; no core depends outward on an adapter or host.
+Core packages import only the Go standard library. Infrastructure adapters depend inward on their core; no core depends outward on an adapter or host.
 
 ## Feedback boundary
 
 ```text
 host-selected context
-  -> Builder (allowlist + default/additional redaction + bounds + freshness)
-  -> Draft
-  -> Report deep copy rendered by the host
-  -> explicit user action
-  -> opaque Approved
+  -> Builder (allowlist + redaction + bounds + freshness)
+  -> Draft -> Report deep copy rendered by host
+  -> explicit user action -> opaque Approved
   -> /v1/feedback HTTPS adapter
-  -> strict single-tenant relay
-  -> relay-owned GitHub rendering/destination
+  -> strict single-tenant Relay
+  -> Relay-owned GitHub rendering and destination
 ```
 
-`Report` deliberately fails JSON encoding. Only `Approved` emits schema 1 JSON. The host owns the preview and action; the relay owns issue title/body/label/repository. Shared Go and Worker fixtures freeze the boundary.
+`Report` deliberately fails JSON encoding. Only `Approved` emits Feedback v1 JSON. The host owns preview and action; the Relay owns issue title, body, label, repository, and credential.
 
 ## Updater boundary
 
@@ -60,44 +58,27 @@ host-selected context
 Source.LatestStable
   -> Prepare validates stable metadata and exact assets
   -> Prepare downloads and pins the same-release SHA-256
-  -> opaque Plan rendered/authorized by the host
+  -> opaque Plan rendered and authorized by host
   -> Apply exact Plan (no second latest lookup)
-  -> lock, archive, checksum, staged verify, backup, replace,
-     installed verify, cleanup or rollback
+  -> lock, checksum, bounded staging, version checks,
+     backup, replacement, cleanup or rollback
 ```
 
-The host owns discovery cadence, authorization, install-kind routing, progress copy, restart, and post-restart confirmation. `updater/github` owns GitHub API/URL/redirect rules. The core owns only the standalone transaction.
+The host owns discovery cadence, authorization, install-kind routing, progress copy, restart, and post-restart confirmation. `updater/github` owns GitHub API and redirect rules. The core owns only the macOS/Linux standalone transaction.
 
 ## Agent integration plane
 
-Agent-friendly does not mean a Codex Skill, blind installer, or a user-managed foundation checkout. The user remains in the target project. An agent resolves the remote entry to one CI-successful commit SHA, reads every resource from that SHA, and adapts the feature safely:
+Agent-friendly does not mean a Skill, blind installer, or user-managed foundation checkout:
 
-- `features/index.json` is the single remote discovery and delivery entry.
-- `features/*/feature.json` declares ownership, prerequisites, invariants, and commands.
-- `features/integration-plan.schema.json` makes the host mapping and remaining uncertainty reviewable.
-- `features/integration-receipt.schema.json` preserves exact source, host artifacts, invariants, evidence, uncertainty, and history after the Agent leaves.
-- Feature READMEs describe the low-level contract.
-- `docs/agent-integration.md` defines the host inventory and mapping process.
-- Remote `go run package@commit` examples prove the intended public API without a clone.
-- `api/v1.txt` and `compat/v1` prevent accidental public drift.
-- Host tests prove the last-mile adapter retained every invariant.
+- `features/index.json` is the single remote entry.
+- `features/*/feature.json` declares responsibilities, delivery, invariants, and checks.
+- `features/integration-lock.schema.json` defines a small visible host record.
+- Remote `go run package@commit` examples prove public usage without a checkout.
+- `api/v1.txt`, `compat/v1`, JSON Schemas, and shared fixtures prevent accidental drift.
+- Host tests prove the last-mile adapter preserves each invariant.
 
-Go packages are delivered through the module cache at the resolved commit. Infrastructure templates are delivered by extracting only declared source subtrees from the same commit. Git submodules, local replaces, floating main references, and a user-managed second checkout are outside the integration model.
+Go packages arrive through the module cache at one CI-successful commit SHA. Infrastructure templates arrive by extracting only declared source subtrees from the same SHA. Git submodules, local replaces, floating `main`, and a user-managed second checkout are outside the model.
 
-Lifecycle remains Agent-driven and typed:
+`agent-app-features.lock.json` records source, deliveries, relative host files, checks, and uncertainty. It is deliberately not a lifecycle database: Git provides history, current code provides ownership, and host tests provide truth. An agent can inspect, refine, upgrade, or remove ordinary code without a foundation-defined action state machine.
 
-```text
-integrate -> partial | active receipt
-                 |
-        inspect / validate / refine
-                 |
-              upgrade
-                 |
-               remove -> removed receipt tombstone
-
-list reads every local receipt without mutation
-```
-
-The foundation owns action semantics and receipt structure. The host owns the files and product behavior named by the receipt. A receipt is evidence and maintenance metadata, not a runtime control plane; it cannot replace current host tests or authorize production operations.
-
-The architecture test rejects channel/product terms and third-party imports in core source files. This is a guardrail; an architectural boundary change still requires human review.
+Contract tests reject third-party imports and product/channel terms in core source. They are guardrails; an architectural boundary change still requires review.

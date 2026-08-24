@@ -36,17 +36,15 @@ UI framework, or Codex Skills collection.
   must start in the target project and must not require a foundation clone,
   Git submodule, local replace, or floating main dependency.
 - Every remote resource and delivery item in one integration must resolve from
-  the same full commit SHA after successful CI. Keep entry, feature, plan, and
-  delivery schemas under strict contract tests.
-- Preserve the typed lifecycle actions in the remote entry. They are protocol
-  operations, not Skills or free-form shell commands.
-- Host integrations leave a sanitized `.agent-app-features/<feature>.json`
-  receipt. It may contain relative paths, configuration key names, invariant
-  evidence, verification, and history; it must not contain values, credentials,
-  payloads, logs, identifiers, absolute paths, or copied source.
-- Active receipts require all invariants plus remote and host proof. Partial
-  receipts retain blockers honestly. Remove keeps a tombstone and never deletes
-  host-shared artifacts.
+  the same full commit SHA after successful CI. Keep entry, feature, lock, and
+  delivery schemas under contract tests.
+- Host integrations leave one visible `agent-app-features.lock.json` with exact
+  source, deliveries, relative files, checks, and `UNVERIFIED` boundaries. It
+  must not contain values, credentials, payloads, logs, identifiers, absolute
+  paths, copied source, lifecycle state, or history.
+- The lock is maintenance metadata only. Git owns history, current code owns
+  file relationships, and host tests own truth. Do not build another action or
+  lifecycle state machine into the foundation.
 
 ## Verification
 

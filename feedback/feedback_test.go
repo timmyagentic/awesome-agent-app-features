@@ -57,7 +57,6 @@ func TestBuilderCreatesStructuredReportAndDropsStaleError(t *testing.T) {
 			Version: "v1.2.3",
 			Agent:   "codex",
 		},
-		InstallID: "install-123",
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -119,13 +118,6 @@ func TestBuilderRejectsEmptyOrUnsafeMetadata(t *testing.T) {
 	}
 	if _, err := builder.Build(Input{Description: "hello"}); err == nil || !strings.Contains(err.Error(), "product") {
 		t.Fatalf("missing product error = %v", err)
-	}
-	if _, err := builder.Build(Input{
-		Description: "hello",
-		Environment: Environment{Product: "Example"},
-		InstallID:   "not allowed/id",
-	}); err == nil || !strings.Contains(err.Error(), "installation ID") {
-		t.Fatalf("unsafe installation ID error = %v", err)
 	}
 	draft, err := (Builder{AdditionalRedact: func(value string) string {
 		return strings.ReplaceAll(value, "internal-project", "[PRODUCT-REDACTED]")
@@ -215,19 +207,5 @@ func TestApprovalProducesOnlyValidWirePayload(t *testing.T) {
 	}
 	if received.Schema != WireSchemaVersion || !received.UserApproved || received.Description != draft.Report().Description {
 		t.Fatalf("approved payload = %+v", received)
-	}
-}
-
-func TestNewInstallIDIsRandomAndValid(t *testing.T) {
-	first, err := NewInstallID()
-	if err != nil {
-		t.Fatalf("NewInstallID: %v", err)
-	}
-	second, err := NewInstallID()
-	if err != nil {
-		t.Fatalf("NewInstallID: %v", err)
-	}
-	if first == second || !validInstallID(first) || len(first) != 32 {
-		t.Fatalf("unexpected IDs: %q %q", first, second)
 	}
 }

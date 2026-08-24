@@ -1,8 +1,6 @@
 package feedback
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"runtime"
 	"sort"
@@ -70,11 +68,6 @@ func (b Builder) Build(input Input) (Draft, error) {
 	environment.OS = boundedLine(redact(environment.OS), MaxMetadataBytes)
 	environment.Arch = boundedLine(redact(environment.Arch), MaxMetadataBytes)
 
-	installID := strings.TrimSpace(input.InstallID)
-	if installID != "" && !validInstallID(installID) {
-		return Draft{}, fmt.Errorf("installation ID must use 1-64 letters, digits, dots, underscores, or hyphens")
-	}
-
 	description := truncateUTF8(strings.TrimSpace(cleanText(redact(input.Description))), MaxDescriptionBytes, "\n\n[truncated]")
 	var recentError *RecentError
 	if input.RecentError != nil && strings.TrimSpace(input.RecentError.Text) != "" {
@@ -95,35 +88,11 @@ func (b Builder) Build(input Input) (Draft, error) {
 	}
 
 	return Draft{report: Report{
-		InstallID:      installID,
 		Environment:    environment,
 		Description:    description,
 		RecentError:    recentError,
 		CapabilityGaps: gaps,
 	}}, nil
-}
-
-// NewInstallID returns a random, non-identifying installation identifier for
-// relay rate limiting. Keeping it empty disables this field.
-func NewInstallID() (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", fmt.Errorf("generate installation ID: %w", err)
-	}
-	return hex.EncodeToString(buffer), nil
-}
-
-func validInstallID(value string) bool {
-	if len(value) == 0 || len(value) > 64 {
-		return false
-	}
-	for _, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func cleanGaps(values []string, redact func(string) string, limit, maxLength int) []string {

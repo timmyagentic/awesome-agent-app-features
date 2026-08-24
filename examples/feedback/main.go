@@ -64,7 +64,6 @@ func renderReport(report feedback.Report) {
 	fmt.Printf("Version: %s\n", report.Environment.Version)
 	fmt.Printf("OS/Arch: %s/%s\n", report.Environment.OS, report.Environment.Arch)
 	fmt.Printf("Agent: %s\n", report.Environment.Agent)
-	fmt.Printf("Install ID: %s\n", report.InstallID)
 	fmt.Printf("Description: %s\n", report.Description)
 	if report.RecentError != nil {
 		fmt.Printf("Recent error (%s): %s\n", report.RecentError.At.Format("2006-01-02T15:04:05Z07:00"), report.RecentError.Text)

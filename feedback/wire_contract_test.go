@@ -13,7 +13,6 @@ import (
 func TestApprovedWireMatchesSharedFeedbackV1Fixture(t *testing.T) {
 	at := time.Date(2026, 8, 23, 9, 0, 0, 0, time.UTC)
 	draft, err := (Builder{Now: func() time.Time { return at.Add(time.Minute) }}).Build(Input{
-		InstallID:   "install-1",
 		Description: "Improve startup diagnostics",
 		RecentError: &RecentError{
 			Text: "startup returned a redacted failure",

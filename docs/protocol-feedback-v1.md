@@ -19,7 +19,6 @@ The authoritative structural schema is [schema.json](../protocol/feedback/v1/sch
 {
   "schema": 1,
   "user_approved": true,
-  "install_id": "optional-random-install-id",
   "environment": {
     "product": "Example Agent",
     "version": "v1.0.0",
@@ -41,7 +40,6 @@ The authoritative structural schema is [schema.json](../protocol/feedback/v1/sch
 | Field | Limit |
 | --- | ---: |
 | Each environment field | 160 UTF-8 bytes |
-| `install_id` | 1–64 ASCII letters/digits/dot/underscore/hyphen |
 | `description` | 4,000 UTF-8 bytes |
 | `recent_error.text` | 4,000 UTF-8 bytes |
 | One capability gap | 160 UTF-8 bytes |
@@ -64,7 +62,7 @@ The reference relay uses `400` for invalid payloads, `405` for the wrong method,
 
 ## Privacy and identity
 
-The protocol has no transcript, reasoning, tool payload, arbitrary metadata map, title, body, label, repository, or token field. `install_id` is optional and should be a persisted random identifier only when anonymous per-install rate limiting is acceptable. The reference relay prefers Cloudflare's connecting IP for abuse limiting when available and never includes it in the issue body.
+The protocol has no transcript, reasoning, tool payload, arbitrary metadata map, persistent installation identifier, title, body, label, repository, or token field. The reference relay uses Cloudflare's connecting IP for abuse limiting when available and a shared fallback bucket otherwise; neither is included in the issue body.
 
 ## Evolution
 

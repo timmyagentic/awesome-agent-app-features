@@ -1,30 +1,25 @@
-# Coding-agent remote integration protocol
+# Coding-agent 远程接入协议
 
 [English](agent-integration.en.md)
 
-这是一份给接入方 Agent 的远程施工协议。使用者只在自己的目标项目中工作，不需要 clone 或维护 `awesome-agent-app-features` 的工作副本。
+这是一份给接入方 Agent 的施工协议。使用者只在目标项目中工作，不需要维护 `awesome-agent-app-features` 的本地副本。
 
-## 唯一入口
+## 1. 固定远程来源
 
-公开发现地址：
+唯一 machine-readable 入口是 `features/index.json`：
 
 ```text
 https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json
 ```
 
-`features/index.json` 是唯一 machine-readable 入口。`main` 只帮助发现仓库；它不是依赖版本。Agent 必须先解析并固定一个完整 commit SHA，之后所有资源使用同一个 SHA。
+`main` 只用于发现。Agent 必须：
 
-## 解析协议
+1. 通过 GitHub API 把 `main` 解析为 40 位 commit SHA。
+2. 确认该 SHA 的 `CI` workflow 已 `completed/success`。
+3. 从该 SHA 重新读取入口和所选 Feature 的 manifest、README、schema 与 delivery。
+4. 所有资源、依赖和模板使用同一 SHA；任何漂移都停止接入。
 
-Agent 在目标项目中执行以下逻辑，不能要求用户切换目录或管理第二个仓库：
-
-1. 从 GitHub Commit API 将 `main` 解析为 40 位 commit SHA。
-2. 查询该 SHA 的 `CI` workflow；只接受 `completed/success`。
-3. 从该 SHA 重新获取 `features/index.json`，不继续信任 discovery URL 的浮动内容。
-4. 从入口选择 feature，并从同一 SHA 获取 manifest、README、schema 和 delivery 项。
-5. 任一资源漂到另一 SHA、CI 未完成/失败或路径不符合入口时，停止接入。
-
-GitHub CLI 参考命令如下；这些是 Agent 的内部步骤，不是用户安装流程：
+参考命令：
 
 ```bash
 foundation_repository="timmyagentic/awesome-agent-app-features"
@@ -43,161 +38,99 @@ curl --fail --silent --show-error --location --proto '=https' \
   "https://raw.githubusercontent.com/${foundation_repository}/${resolved_commit}/features/index.json"
 ```
 
-如果无法使用 `gh`，Agent 可以调用同等 GitHub HTTPS API。不得通过浮动 `main` 混合读取多个时刻的文件。
+无法使用 `gh` 时可以调用等价的 GitHub HTTPS API。不能从浮动 `main` 混合读取不同时间的文件。
 
-## 先形成宿主映射
+## 2. 先映射宿主
 
-修改目标代码前，Agent 按同一 SHA 获取 `features/integration-plan.schema.json`，并形成一份可审查的计划。计划可以在对话中呈现；只有宿主希望长期审计时才写入目标仓库。
+修改代码前，Agent 在对话或工作计划中写清：
 
-计划至少记录：
+- Feature、contract、resolved commit SHA 和实际 delivery；
+- foundation、generic adapter 与宿主各自负责什么；
+- 宿主现有入口、配置、安装类型和可复用代码；
+- 每条 invariant 在宿主中的落点；
+- 预计修改的相对路径、聚焦测试、完整验证与 `UNVERIFIED`。
 
-- resolved commit、成功 CI run URL、feature、contract 和 delivery mode。
-- 宿主 runtime、已有 UI/命令/配置、安装类型和生命周期。
-- 每条 foundation/adapter/host responsibility 的落点。
-- 每条 invariant 的 `preserved`、`not-applicable` 或 `blocked` 证据。
-- 将修改的宿主文件、聚焦测试、完整验证与 `UNVERIFIED` 项。
-- 预期 receipt 路径 `.agent-app-features/<feature>.json`。
+这是一份针对当前代码的短计划，不需要再创建通用 plan JSON。卡片、命令、权限、本地化、重启和业务流程都映射到宿主；本仓库只提供底层值、状态机、端口和基础设施 adapter。
 
-[integration-plan.example.json](../features/integration-plan.example.json) 只是结构示例，不是可复用的宿主决策。
-
-## 持久 Receipt
-
-Agent 在代码和验证结束后，按同一 SHA 获取 `features/integration-receipt.schema.json`，并把结果写入 integration plan 声明的 receipt 路径。完整结构示例见 [host-receipt](../examples/host-receipt/)。
-
-Receipt 是后续 Agent 的维护入口，不是运行时配置。它必须：
-
-- 记录 exact source commit、成功 CI run、entry 和 feature manifest。
-- 记录实际选择的 delivery、resolved module version 和宿主 target。
-- 只记录宿主相对路径、入口名称和配置键名，不记录配置值。
-- 完整复制 manifest invariants，并为每一条记录状态和清洗后的证据。
-- 区分 remote、foundation、host 和 production 验证；失败不能写成 passed。
-- 记录 `UNVERIFIED`、action history 和 removal evidence。
-- 不包含 Token、Cookie、用户/群 ID、payload、原始日志、绝对路径或源码副本。
-
-Receipt 状态：
-
-- `partial`：接入已有实现或证据，但仍有 blocked invariant 或关键验证失败/缺失。
-- `active`：没有 blocked invariant，至少 remote 和 host 验证成功。
-- `removed`：接入已移除，receipt 作为 tombstone 保留，记录 removed/retained paths。
-
-## Delivery modes
+## 3. 应用声明的 Delivery
 
 ### `go-module`
 
-Agent 在目标项目中把解析出的 SHA 直接交给 Go：
+在目标项目中执行：
 
 ```bash
 go get "github.com/timmyagentic/awesome-agent-app-features@${resolved_commit}"
 GOWORK=off go test github.com/timmyagentic/awesome-agent-app-features/compat/v1
 ```
 
-Go 会把模块放进 module cache，不会在用户项目旁创建本仓库工作副本。目标 `go.mod` 最终记录由该 SHA 解析出的 immutable pseudo-version。
+Go 把模块放入 module cache，并在 `go.mod` 中记录 immutable pseudo-version。不得使用本地 `replace`、submodule 或浮动 `main`。
 
 ### `source-subtree`
 
-Agent 从入口声明的同 SHA GitHub archive 或 Contents API 临时下载内容，只提取 manifest 声明的目录，例如 `relay/cloudflare`，再放到宿主基础设施目录。Agent 必须：
+在临时目录下载同 SHA 的 GitHub archive，只提取 manifest 声明的目录，例如 `relay/cloudflare`。提取前检查 archive entries，拒绝 traversal、symlink 和声明目录外文件；完成后删除临时材料。复制后的配置、凭证、部署和维护由宿主负责。没有生产授权时只测试和 dry-run。
 
-- 先检查 archive entry，拒绝 traversal、symlink 和声明目录外文件。
-- 不复制整个 foundation，不创建 submodule，不保留临时下载目录。
-- 把提取后的配置、部署、凭证和生命周期视为宿主所有。
-- 未获生产授权时只运行测试和 dry-run，不部署。
+## 4. 运行证明
 
-## 远程零配置证明
-
-Agent 可以在写宿主代码前直接运行同 SHA 示例：
+写宿主代码前可以运行同 SHA 的零配置示例：
 
 ```bash
 GOWORK=off go run "github.com/timmyagentic/awesome-agent-app-features/examples/feedback@${resolved_commit}"
 GOWORK=off go run "github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@${resolved_commit}"
 ```
 
-Feedback 示例只显示 preview。Updater 示例只在临时目录执行完整 prepare/apply/checksum/version/replace 流程，不访问真实 Release 或已安装产品。
+Feedback 示例只显示 preview。Updater 示例只更新临时假二进制，不访问真实 Release 或已安装产品。之后仍需运行 manifest 中适用的 remote checks、聚焦宿主测试和目标项目完整验证。
 
-## Typed lifecycle actions
+## 5. 写入最小 Lock
 
-Action 定义来自 exact-SHA `features/index.json`，不是 Skill、shell installer 或平台插件。
+接入完成后，在目标项目根目录写入可见的 `agent-app-features.lock.json`，并使用同 SHA 的 [integration-lock.schema.json](../features/integration-lock.schema.json) 验证。
 
-### `integrate`
+Lock 只记录：
 
-要求 receipt 不存在或为 `removed`。解析 source、生成 plan、应用 declared delivery、实现宿主映射并验证，然后写入 `active` 或诚实的 `partial` receipt。
+- source repository 和完整 commit SHA；
+- Feature ID、contract、实际 delivery 与 resolved module version；
+- Agent 修改的宿主相对路径；
+- 成功执行的 checks、`verified_at` 和诚实的 `unverified`。
 
-### `inspect`
-
-只读比较 receipt 与实际依赖、source SHA、delivery target、artifacts、宿主入口、invariants、verification 和 `UNVERIFIED`。不访问生产、不自动修复、不修改 receipt。
-
-### `validate`
-
-固定 receipt 当前 source commit，重跑适用的 `verification.remote` 与宿主验证。只更新清洗后的 evidence、invariant status、`UNVERIFIED`、时间和 history；不修改宿主实现。
-
-### `refine`
-
-保持 source commit 不变，补齐宿主映射、UX、fallback、恢复和测试。记录每个新增/修改 artifact，重新验证后追加 history。
-
-### `upgrade`
-
-解析一个新的 CI-successful commit，先比较 contract、公开 API、wire schema、delivery 和 invariants。只有兼容性与迁移路径明确时，才把全部选中 delivery 一起更新到新 SHA；禁止 mixed-source。成功验证后更新 receipt，并把旧 SHA 留在 history。
-
-### `remove`
-
-先禁用产品入口，再只删除 `integration-managed/candidate` 且确认未共享的资产。共享文件、配置容器和仍被其他代码使用的 dependency 必须保留。完成宿主验证后把 receipt 标为 `removed`，记录 removed/retained paths，不删除 tombstone。
-
-### `list`
-
-只在本地读取 `.agent-app-features/*.json`，列出 Feature、state、contract、source commit、last action 和 drift。默认不访问网络。
+不要写配置值、Token、Cookie、用户或群 ID、payload、原始日志、绝对路径、源码副本或运行状态。Lock 是后续 Agent 的定位线索，不是运行配置、审计数据库或完成证明。
 
 ## Feedback 宿主盘点
 
-确认并记录：
+- 哪些用户动作、错误或能力缺口触发“是否反馈”。
+- 哪个宿主 surface 展示 `Draft.Report()` 的全部字段。
+- 哪个明确动作代表批准；只有该回调可以调用 `Approve(true)`。
+- 哪些产品特有 secret、ID 和路径需要 `AdditionalRedact` 测试。
+- Relay endpoint 的配置来源、不可用体验和公开 fallback。
 
-- 哪些用户可见错误或能力缺口可以触发“是否反馈”。
-- 哪个宿主 surface 会渲染 `Draft.Report()` 的每一个字段。
-- 哪个明确动作代表批准；自然语言总结本身不等于批准。
-- 哪些产品特有 secret、ID、路径形态需要 `AdditionalRedact` 和回归测试。
-- `product/version/os/arch/agent` 的可信来源。
-- 是否接受匿名 per-install linkability；不接受就省略 `InstallID`。
-- `/v1/feedback` endpoint 的配置/禁用方式和 relay 失败后的公开 fallback。
-
-禁止采集任意环境变量 map、对话全文、reasoning、tool payload、原始日志、用户/群 ID 或凭证。宿主可以用飞书卡片、文本、CLI 或 Web 呈现，但必须完整显示 `Report`，且只有确认回调才能调用 `Approve(true)`。
-
-最低宿主测试：
-
-- 未批准或取消时没有网络请求。
-- preview 覆盖所有 outbound fields，修改 preview 不能改变 approved payload。
-- 默认和产品特有脱敏都生效；stale/future error 不会附到无关报告。
-- endpoint 固定为 v1；失败提示不打印 payload/token，并提供安全 fallback。
+不得捕获任意环境 map、对话 transcript、reasoning、tool payload、原始日志、身份或凭证。宿主测试至少覆盖取消时零请求、preview/outbound 一致、脱敏、stale error、exact endpoint 和 fallback。
 
 ## Updater 宿主盘点
 
-确认并记录：
+- current-version truth、严格且不改文件的版本输出；
+- archive、checksum 和 archive entry 命名；
+- executable path、安装类型和所有更新入口；
+- 授权、progress renderer、restart 与 post-restart acknowledgement；
+- 与 stable-only 流程分离的 beta/nightly 策略。
 
-- 唯一可信的当前版本值和 released binary 的严格、无副作用 version probe。
-- 每个平台的 exact archive/checksum 名和 archive 内 executable name。
-- executable path、权限与安装类型；symlink 通常意味着 package manager，不能走 standalone。
-- 所有入口：聊天、CLI、UI、手动管理操作和后台 discovery。
-- 更新授权规则，以及 shutdown、restart、post-restart acknowledgement。
-- beta/nightly 现有通道；它们必须与 stable updater 分离。
+所有入口共享一个 Updater 配置。交互流程是 `Prepare -> 展示 exact Plan -> 授权 -> Apply(同一 Plan)`；只有已经授权的非交互入口可以调用 `UpdateLatest`。npm、Homebrew、Windows 等安装类型必须使用宿主 adapter，不能继承 standalone 替换承诺。
 
-所有入口应持有同一份 updater 配置。交互入口执行 `Prepare -> render exact Plan -> authorize -> Apply(plan)`；已经完成授权的非交互入口可以执行 `UpdateLatest`。聊天入口不能 shell 到另一个拥有独立策略的 CLI installer。
+## 后续维护
 
-最低宿主测试：
+- 检查：对照 lock、当前依赖、宿主接线和 manifest invariants，只读报告 drift。
+- 验证：固定 lock 中的 source，重跑适用检查，不把历史成功当作当前证据。
+- 优化：在同一 source 下补齐宿主 UX、fallback 或测试。
+- 升级：解析新的 CI-successful commit，比较契约后把所有 delivery 一起迁移并更新 lock，禁止 mixed-source。
+- 移除：先查当前引用和 Git 历史，只删除确定未共享的接入代码；从 lock 删除对应 Feature，空 lock 可以删除。
 
-- prompt 展示的 tag/asset 与 `Apply` 实际安装完全相同，确认后 latest 变化也不能漂移。
-- prerelease、draft、非法版本、missing/duplicate assets 和 checksum mismatch 均在 mutation 前失败。
-- staged mismatch 不替换；installed mismatch 恢复旧 binary。
-- concurrent entry points 得到明确 sentinel errors。
-- restart 与 post-restart acknowledgement 作为宿主逻辑单独验证。
+这些是 Agent 对普通代码库的操作，不是本仓库维护的 action 状态机。Git 负责历史，宿主测试负责当前真相。
 
-package-manager 安装必须有单独 adapter，明确 stable selection、post-install version truth 和真实 recovery；不能把 standalone 保证写成 npm/Homebrew/Windows 保证。
+## 完成标准
 
-## 完成条件
+只有以下条件满足才能报告完成：
 
-Agent 只有在以下条件满足时才能报告接入完成：
+- 依赖和所有远程资源来自同一 commit SHA；
+- 每条 responsibility 和 invariant 有宿主落点或明确 blocker；
+- 适用 remote checks、聚焦测试和目标项目完整验证通过；
+- 无法执行的客户端、凭证、部署、付费、重启或生产验证标为 `UNVERIFIED`；
+- `agent-app-features.lock.json` 通过 exact-source schema，并与实际 delivery 和宿主文件一致。
 
-- 依赖和所有读取资源固定到同一 commit SHA。
-- integration plan 的每条 mapping 和 invariant 都有实现或明确 blocker。
-- feature manifest 的 `verification.remote` 与适用的 `verification.host` 已执行。
-- 目标项目的正常完整验证已执行。
-- 真实客户端、生产凭证、部署、重启或付费检查未执行时明确标为 `UNVERIFIED`。
-- `.agent-app-features/<feature>.json` 已通过 exact-source receipt schema，且内容与 manifest、实际 delivery 和宿主文件一致。
-
-不允许用用户 clone、本地 `replace`、浮动 `main`、临时成功输出、历史 receipt 或 foundation 自身测试替代当前宿主验证。
+Foundation 自身测试、临时成功输出或历史 lock 都不能替代当前宿主验证。

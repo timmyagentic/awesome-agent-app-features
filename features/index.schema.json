@@ -39,13 +39,20 @@
     "entrypoint": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "discovery_url", "integration_plan_schema", "integration_receipt_schema"],
+      "required": [
+        "path",
+        "discovery_url",
+        "integration_plan_schema",
+        "integration_plan_example",
+        "integration_receipt_schema"
+      ],
       "properties": {
         "path": { "const": "features/index.json" },
         "discovery_url": {
           "const": "https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/features/index.json"
         },
         "integration_plan_schema": { "const": "features/integration-plan.schema.json" },
+        "integration_plan_example": { "const": "features/integration-plan.example.json" },
         "integration_receipt_schema": { "const": "features/integration-receipt.schema.json" }
       }
     },

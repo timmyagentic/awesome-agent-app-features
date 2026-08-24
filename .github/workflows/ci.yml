@@ -116,7 +116,22 @@ jobs:
           receipt_schema="$(jq -r '.receipt.schema_path' <<<"${entry}")"
           curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${receipt_schema}" | jq -e '."$schema" == "https://json-schema.org/draft/2020-12/schema"' >/dev/null
           receipt_example="$(jq -r '.receipt.example_path' <<<"${entry}")"
-          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${receipt_example}" | jq -e '.schema == 1 and .state == "active"' >/dev/null
+          receipt="$(curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${receipt_example}")"
+          jq -e '.schema == 1 and .state == "active"' <<<"${receipt}" >/dev/null
+          receipt_source="$(jq -r '.source.resolved_commit' <<<"${receipt}")"
+          receipt_manifest="$(jq -r '.source.manifest_path' <<<"${receipt}")"
+          receipt_run_id="$(jq -r '.source.ci_run_url | split("/")[-1]' <<<"${receipt}")"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://api.github.com/repos/${REMOTE_REPOSITORY}/actions/runs/${receipt_run_id}" | jq -e --arg source "${receipt_source}" '.head_sha == $source and .status == "completed" and .conclusion == "success"' >/dev/null
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${receipt_source}/${receipt_schema}" | jq -e '."$schema" == "https://json-schema.org/draft/2020-12/schema"' >/dev/null
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${receipt_source}/${receipt_manifest}" | jq -e --arg feature "$(jq -r '.feature.id' <<<"${receipt}")" '.id == $feature' >/dev/null
+          jq -e --arg suffix "${receipt_source:0:12}" 'all(.deliveries[] | select(.mode == "go-module"); .resolved_version | endswith($suffix))' <<<"${receipt}" >/dev/null
+          plan_example="$(jq -r '.entrypoint.integration_plan_example' <<<"${entry}")"
+          plan="$(curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${plan_example}")"
+          plan_source="$(jq -r '.source.resolved_commit' <<<"${plan}")"
+          plan_run_id="$(jq -r '.source.ci_run_url | split("/")[-1]' <<<"${plan}")"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://api.github.com/repos/${REMOTE_REPOSITORY}/actions/runs/${plan_run_id}" | jq -e --arg source "${plan_source}" '.head_sha == $source and .status == "completed" and .conclusion == "success"' >/dev/null
+          plan_schema="$(jq -r '.entrypoint.integration_plan_schema' <<<"${entry}")"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${plan_source}/${plan_schema}" | jq -e '."$schema" == "https://json-schema.org/draft/2020-12/schema"' >/dev/null
 
           consumer_directory="$(mktemp -d)"
           archive_path="${consumer_directory}/foundation.tar.gz"

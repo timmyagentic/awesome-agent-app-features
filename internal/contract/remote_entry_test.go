@@ -25,6 +25,7 @@ type remoteEntry struct {
 		Path                     string `json:"path"`
 		DiscoveryURL             string `json:"discovery_url"`
 		IntegrationPlanSchema    string `json:"integration_plan_schema"`
+		IntegrationPlanExample   string `json:"integration_plan_example"`
 		IntegrationReceiptSchema string `json:"integration_receipt_schema"`
 	} `json:"entrypoint"`
 	Resolution struct {
@@ -138,6 +139,7 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 	}
 	if entry.Entrypoint.Path != "features/index.json" ||
 		entry.Entrypoint.IntegrationPlanSchema != "features/integration-plan.schema.json" ||
+		entry.Entrypoint.IntegrationPlanExample != "features/integration-plan.example.json" ||
 		entry.Entrypoint.IntegrationReceiptSchema != "features/integration-receipt.schema.json" {
 		t.Fatalf("unexpected entrypoint: %+v", entry.Entrypoint)
 	}
@@ -235,8 +237,10 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 			t.Errorf("entry/manifest mismatch for %q", feature.ID)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(entry.Entrypoint.IntegrationPlanSchema))); err != nil {
-		t.Fatalf("integration plan schema: %v", err)
+	for _, relative := range []string{entry.Entrypoint.IntegrationPlanSchema, entry.Entrypoint.IntegrationPlanExample} {
+		if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err != nil || !info.Mode().IsRegular() {
+			t.Errorf("integration plan resource %q is unavailable", relative)
+		}
 	}
 }
 
@@ -329,6 +333,8 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 		"features/index.json",
 		".receipt.schema_path",
 		".receipt.example_path",
+		".entrypoint.integration_plan_example",
+		".source.resolved_commit",
 		"same_commit_required",
 		"GOPROXY=direct go get",
 		"/compat/v1",

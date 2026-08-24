@@ -5,8 +5,8 @@
   "state": "active",
   "source": {
     "repository": "timmyagentic/awesome-agent-app-features",
-    "resolved_commit": "39264ae9ea352bcebfc82d7658549191f5ba7021",
-    "ci_run_url": "https://github.com/timmyagentic/awesome-agent-app-features/actions/runs/32682947813",
+    "resolved_commit": "7fd66c9f25111e1fe6564b36a477e16c78f831d8",
+    "ci_run_url": "https://github.com/timmyagentic/awesome-agent-app-features/actions/runs/32696109732",
     "ci_conclusion": "success",
     "entry_path": "features/index.json",
     "manifest_path": "features/feedback/feature.json"
@@ -28,13 +28,13 @@
       "mode": "go-module",
       "source": "github.com/timmyagentic/awesome-agent-app-features/feedback",
       "target": "go.mod",
-      "resolved_version": "v0.0.0-20260824022415-39264ae9ea35"
+      "resolved_version": "v0.0.0-20260824060835-7fd66c9f2511"
     },
     {
       "mode": "go-module",
       "source": "github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient",
       "target": "go.mod",
-      "resolved_version": "v0.0.0-20260824022415-39264ae9ea35"
+      "resolved_version": "v0.0.0-20260824060835-7fd66c9f2511"
     },
     {
       "mode": "source-subtree",
@@ -125,29 +125,29 @@
       "scope": "remote",
       "check": "Run the exact-source external consumer contract.",
       "status": "passed",
-      "evidence": "Source CI run 32682947813 passed the no-checkout remote consumer.",
-      "at": "2026-08-24T02:24:15Z"
+      "evidence": "Source CI run 32696109732 passed the no-checkout remote consumer.",
+      "at": "2026-08-24T06:08:35Z"
     },
     {
       "scope": "foundation",
       "check": "Verify Feedback core, HTTP client, relay schema, and workerd runtime.",
       "status": "passed",
-      "evidence": "Source CI run 32682947813 completed successfully.",
-      "at": "2026-08-24T02:24:15Z"
+      "evidence": "Source CI run 32696109732 completed successfully.",
+      "at": "2026-08-24T06:08:35Z"
     },
     {
       "scope": "host",
       "check": "Run focused Feedback adapter tests and the host's complete normal verification.",
       "status": "passed",
       "evidence": "Illustrative host evidence: focused and full suites completed without failures.",
-      "at": "2026-08-24T02:24:15Z"
+      "at": "2026-08-24T06:08:35Z"
     },
     {
       "scope": "production",
       "check": "Create one live downstream issue through production credentials.",
       "status": "unverified",
       "evidence": "Production deployment and credentials were outside the illustrative integration scope.",
-      "at": "2026-08-24T02:24:15Z"
+      "at": "2026-08-24T06:08:35Z"
     }
   ],
   "unverified": [
@@ -160,8 +160,8 @@
     {
       "action": "integrate",
       "from_commit": null,
-      "to_commit": "39264ae9ea352bcebfc82d7658549191f5ba7021",
-      "at": "2026-08-24T02:24:15Z",
+      "to_commit": "7fd66c9f25111e1fe6564b36a477e16c78f831d8",
+      "at": "2026-08-24T06:08:35Z",
       "summary": "Integrated Feedback core, HTTPS client, host adapter, and relay subtree."
     }
   ],
@@ -171,5 +171,5 @@
     "retained_paths": [],
     "evidence": "No removal has been requested."
   },
-  "updated_at": "2026-08-24T02:24:15Z"
+  "updated_at": "2026-08-24T06:08:35Z"
 }

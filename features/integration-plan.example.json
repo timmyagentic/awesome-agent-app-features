@@ -1,0 +1,119 @@
+{
+  "$schema": "./integration-plan.schema.json",
+  "schema": 1,
+  "source": {
+    "repository": "timmyagentic/awesome-agent-app-features",
+    "resolved_commit": "2592bd01003a687b37ca3e261e8c59bb61934409",
+    "ci_run_url": "https://github.com/timmyagentic/awesome-agent-app-features/actions/runs/32651611675",
+    "ci_conclusion": "success",
+    "entry_path": "features/index.json",
+    "manifest_path": "features/feedback/feature.json"
+  },
+  "feature": {
+    "id": "feedback",
+    "contract": "v1",
+    "deliveries": [
+      {
+        "mode": "go-module",
+        "source": "github.com/timmyagentic/awesome-agent-app-features/feedback",
+        "target": "go.mod"
+      },
+      {
+        "mode": "go-module",
+        "source": "github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient",
+        "target": "go.mod"
+      }
+    ]
+  },
+  "host": {
+    "root": ".",
+    "runtime": ["go"],
+    "existing_surfaces": ["terminal confirmation"],
+    "install_kinds": [],
+    "decisions": [
+      "Render the complete redacted report before approval.",
+      "Keep the relay endpoint in host configuration."
+    ]
+  },
+  "mappings": [
+    {
+      "contract_item": "Explicit approval",
+      "owner": "host",
+      "host_location": "internal/feedback/flow.go",
+      "implementation": "A second terminal action approves the exact previewed draft.",
+      "tests": ["TestFeedbackCancelPerformsNoRequest"]
+    },
+    {
+      "contract_item": "Redacted structured draft",
+      "owner": "foundation",
+      "host_location": "go.mod",
+      "implementation": "Use feedback.Builder from the exact resolved module commit.",
+      "tests": ["TestFeedbackPreviewMatchesApprovedPayload"]
+    }
+  ],
+  "invariants": [
+    {
+      "invariant": "There is one feedback shape; errors and capability gaps are optional context, not categories.",
+      "status": "preserved",
+      "evidence": "One feedback.Input builder carries optional recent error and capability gaps."
+    },
+    {
+      "invariant": "No report is submitted in the background or before an explicit user action.",
+      "status": "preserved",
+      "evidence": "The cancellation test observes zero HTTP requests."
+    },
+    {
+      "invariant": "Every outbound free-text field is redacted and bounded before approval.",
+      "status": "preserved",
+      "evidence": "Focused tests cover default and product-specific redaction before Draft.Approve."
+    },
+    {
+      "invariant": "Draft.Report is a deep-copied preview and cannot be JSON-marshaled; only opaque Approved emits Feedback v1 JSON.",
+      "status": "preserved",
+      "evidence": "The preview-equivalence test mutates its copy and verifies Report serialization is refused."
+    },
+    {
+      "invariant": "The core payload contains structured report data and no issue title, Markdown body, card, or localized presentation.",
+      "status": "preserved",
+      "evidence": "Presentation is implemented only in the host adapter."
+    },
+    {
+      "invariant": "Automatically captured environment data is a fixed allowlist.",
+      "status": "preserved",
+      "evidence": "The host maps only product, version, OS, architecture, and agent."
+    },
+    {
+      "invariant": "The provided HTTP client never follows redirects for an approved feedback POST.",
+      "status": "preserved",
+      "evidence": "The host uses feedback/httpclient.Client without a second transport."
+    },
+    {
+      "invariant": "The provided HTTP client and reference relay use only POST /v1/feedback for wire schema 1.",
+      "status": "preserved",
+      "evidence": "The configured endpoint and focused transport test use the exact v1 path."
+    },
+    {
+      "invariant": "The client has no GitHub token and cannot select the relay target repository.",
+      "status": "preserved",
+      "evidence": "The host configuration contains only the relay endpoint."
+    },
+    {
+      "invariant": "The relay validates schema, approval, fields, and byte limits again.",
+      "status": "blocked",
+      "evidence": "Production relay delivery and credentials are intentionally UNVERIFIED in this example."
+    }
+  ],
+  "changes": [
+    {
+      "path": "internal/feedback/flow.go",
+      "reason": "Host adapter for preview, approval, and submission."
+    }
+  ],
+  "verification": {
+    "foundation": [
+      "go test github.com/timmyagentic/awesome-agent-app-features/compat/v1"
+    ],
+    "host": ["go test ./..."]
+  },
+  "unverified": ["Production relay credentials and live downstream issue creation."]
+}

@@ -15,11 +15,14 @@ import (
 )
 
 func main() {
-	repository := flag.String("repo", "owner/example-agent", "GitHub owner/repository")
+	repository := flag.String("repo", "", "required GitHub owner/repository")
 	current := flag.String("current", "v1.0.0", "current product version")
 	executable := flag.String("executable", "", "installed executable path; defaults to this example executable")
 	apply := flag.Bool("apply", false, "install the update after an explicit confirmation")
 	flag.Parse()
+	if strings.TrimSpace(*repository) == "" {
+		fatal(fmt.Errorf("-repo owner/repository is required; run the offline updater-demo example for a zero-configuration transaction"))
+	}
 
 	service, err := updater.New(updater.Config{
 		Product:        "example-agent",

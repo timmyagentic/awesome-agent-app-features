@@ -1,5 +1,17 @@
 # Security model
 
+## Remote Agent integration
+
+| Threat | Control | Residual risk |
+| --- | --- | --- |
+| Discovery content changes during integration | Resolve `main` once, require a full commit SHA, then refetch the entry and every resource from that SHA | A compromised repository can still publish a malicious commit |
+| Foundation code and documentation come from different revisions | `features/index.json` requires same-commit manifest, docs, module, examples, and source-subtree delivery | The Agent must preserve the resolved SHA when invoking its own tools |
+| Floating or local dependency bypasses review | Delivery forbids floating `main`, local `replace`, submodules, and a user-managed foundation checkout; Go records an immutable pseudo-version | A target maintainer can later change its dependency intentionally |
+| Source archive writes outside the intended host path | Only declared subtrees may be extracted in a temporary directory after entry inspection; traversal and symlinks are rejected | The copied subtree becomes host-owned and needs normal review thereafter |
+| Green CI is mistaken for publisher identity | Agents require successful CI as a quality gate | GitHub account/repository compromise remains in the trust root; higher-assurance users should require signed commits or independently rooted provenance |
+
+The discovery URL on `main` is not an immutable dependency and must never be copied into a target lockfile as one. A no-clone workflow removes user-managed checkout drift; it does not remove the need to review the resolved source and target-project changes.
+
 ## Feedback
 
 | Threat | v1 control | Residual risk |

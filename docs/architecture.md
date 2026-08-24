@@ -70,13 +70,17 @@ The host owns discovery cadence, authorization, install-kind routing, progress c
 
 ## Agent integration plane
 
-Agent-friendly does not mean a Codex Skill or blind installer. It means an agent has enough executable information to adapt the feature safely:
+Agent-friendly does not mean a Codex Skill, blind installer, or a user-managed foundation checkout. The user remains in the target project. An agent resolves the remote entry to one CI-successful commit SHA, reads every resource from that SHA, and adapts the feature safely:
 
+- `features/index.json` is the single remote discovery and delivery entry.
 - `features/*/feature.json` declares ownership, prerequisites, invariants, and commands.
+- `features/integration-plan.schema.json` makes the host mapping and remaining uncertainty reviewable.
 - Feature READMEs describe the low-level contract.
 - `docs/agent-integration.md` defines the host inventory and mapping process.
-- Examples compile the intended public API.
+- Remote `go run package@commit` examples prove the intended public API without a clone.
 - `api/v1.txt` and `compat/v1` prevent accidental public drift.
 - Host tests prove the last-mile adapter retained every invariant.
+
+Go packages are delivered through the module cache at the resolved commit. Infrastructure templates are delivered by extracting only declared source subtrees from the same commit. Git submodules, local replaces, floating main references, and a user-managed second checkout are outside the integration model.
 
 The architecture test rejects channel/product terms and third-party imports in core source files. This is a guardrail; an architectural boundary change still requires human review.

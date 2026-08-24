@@ -1,6 +1,6 @@
 # Compatibility policy
 
-The repository is stabilizing an unreleased `v1` contract. Once a v1 tag is formally published, it follows Semantic Versioning for the reusable foundation, not for host UI or product-specific adapters. Until then, pin an exact reviewed commit and do not treat `main` as a compatibility promise.
+The repository is stabilizing an unreleased `v1` contract. Once a v1 tag is formally published, it follows Semantic Versioning for the reusable foundation, not for host UI or product-specific adapters. Until then, the integration Agent resolves the remote entry to an exact reviewed commit SHA after successful CI and pins every resource to that SHA; `main` is discovery-only, not a compatibility promise.
 
 ## Supported surface
 

@@ -2,7 +2,7 @@
 
 Releases are immutable Go module tags plus reproducible source archives attached to a GitHub Release.
 
-1. Update `CHANGELOG.md` and verify the intended version follows SemVer. For a feature's first publication, change its manifest to `release_status: released` and set `since` to that exact first tag; later releases preserve the original `since` value.
+1. Update `CHANGELOG.md` and verify the intended version follows SemVer. For first publication, change the remote entry and each feature manifest to `release_status: released` and set `since` to that exact first tag; later releases preserve the original `since` value.
 2. Run `make verify` from a clean worktree.
 3. Confirm `api/v1.txt`, shared protocol fixtures, manifests, and compatibility policy changed only by deliberate review.
 4. Merge the release commit to `main` with all required checks green.

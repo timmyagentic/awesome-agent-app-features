@@ -32,6 +32,12 @@ UI framework, or Codex Skills collection.
   compatibility gates; update them only after an explicit compatibility review.
 - Do not add `SKILL.md`; integration instructions belong in feature manifests
   and `docs/agent-integration.md`.
+- Preserve `features/index.json` as the single remote entry. User onboarding
+  must start in the target project and must not require a foundation clone,
+  Git submodule, local replace, or floating main dependency.
+- Every remote resource and delivery item in one integration must resolve from
+  the same full commit SHA after successful CI. Keep entry, feature, plan, and
+  delivery schemas under strict contract tests.
 
 ## Verification
 

@@ -26,4 +26,4 @@ All host entry points share one updater configuration. They may render events di
 
 The standalone adapter supports macOS/Linux regular executable paths. npm, Homebrew, symlink installations, and Windows require explicit install-kind adapters with honest verification and recovery behavior.
 
-After integration, keep `.agent-app-features/updater.json` aligned with this manifest. Its artifact ownership prevents removal from deleting shared host entry points or recovery material; its history preserves prior source commits across upgrades. Run the manifest's `lifecycle` steps rather than reconstructing maintenance policy from code.
+After integration, record the exact source, module version, host-relative files, successful checks, and `UNVERIFIED` boundaries in the target's visible `agent-app-features.lock.json`. Future agents combine that locator with current references, Git history, and host tests; the lock does not own shared files or recovery material.

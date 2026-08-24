@@ -13,7 +13,7 @@ The stable Go API consists only of these import paths:
 
 `api/v1.txt` records their exported declarations. `compat/v1` compiles and exercises them as an external package. CI rejects an accidental API change.
 
-The remote integration surface also includes the exact action IDs and semantics in `features/index.json`, feature lifecycle sections, `integration-plan.schema.json`, and `integration-receipt.schema.json`. Once published, removing an action, weakening a receipt safety rule, changing an existing state meaning, or allowing a new untyped delivery mode requires an explicit compatibility migration.
+The remote integration surface also includes `features/index.json`, feature manifests, declared delivery modes, manifest invariants, and `integration-lock.schema.json`. Once published, removing a Feature, weakening an invariant, or changing an existing delivery or lock field incompatibly requires an explicit migration.
 
 The minimum toolchain for all `v1.x` releases is Go 1.25. Consumers should use keyed literals for exported configuration and data structs; a minor release may add an optional field, constant, stage, or helper, but will not remove or change an existing one. Adding a method to a public interface, changing a method signature, or changing existing field semantics requires a new major version.
 
@@ -29,8 +29,8 @@ The following behavior is stable throughout v1:
 - `Apply` never resolves latest and either installs that exact plan or fails/rolls back.
 - Existing updater stage string values and exported sentinel errors remain valid.
 - Every manifest `invariants` item remains a security and compatibility boundary.
-- `active` receipts have no blocked invariant and contain current remote and host proof.
-- `upgrade` never mixes delivery commits, and `remove` retains a receipt tombstone and host-shared artifacts.
+- One integration never mixes delivery commits.
+- The host lock remains metadata only and never substitutes for current host verification.
 
 Hosts should compare sentinel errors with `errors.Is`; complete error text is diagnostic and not a compatibility API. Event consumers must tolerate a new stage added by a future minor release, while existing stages retain their meaning and relative safety boundary.
 
@@ -48,6 +48,6 @@ The following may evolve without a Go major version, provided the stable contrac
 - Files under `internal/` and implementation details of opaque values.
 - Relay GitHub title/body presentation and best-effort deduplication details.
 - CI layout and release packaging.
-- Free-text wording inside lifecycle steps, provided action preconditions, mutation scope, result meaning, receipt states, and safety requirements retain their existing meaning.
+- Free-text wording in manifests and integration guidance, while declared invariants retain their meaning.
 
 The reference Cloudflare relay is self-hosted. Operators control deployment timing and are responsible for migrating their own instance; this repository never changes a deployed relay automatically.

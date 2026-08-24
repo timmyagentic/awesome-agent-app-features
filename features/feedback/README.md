@@ -30,4 +30,4 @@ Use [Feedback v1](../../docs/protocol-feedback-v1.md) for the exact wire contrac
 
 The Go core and HTTPS client use `go-module` delivery. The optional Cloudflare relay uses `source-subtree` delivery: the Agent extracts only `relay/cloudflare` from the same resolved commit into host-owned infrastructure.
 
-After integration, keep `.agent-app-features/feedback.json` aligned with this manifest. Use the manifest's `lifecycle` steps for inspect, validate, same-source refinement, exact-source upgrade, and safe removal. Receipt evidence names configuration keys but never endpoint values, tokens, payloads, logs, or user identifiers.
+After integration, record the exact source, actual deliveries, host-relative files, successful checks, and `UNVERIFIED` boundaries in the target's visible `agent-app-features.lock.json`. Never store endpoint values, tokens, payloads, logs, or user identifiers there.

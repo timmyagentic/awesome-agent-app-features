@@ -1,7 +1,6 @@
 {
   "schema": 1,
   "user_approved": true,
-  "install_id": "install-1",
   "environment": {
     "product": "Example Agent",
     "version": "v1.0.0",

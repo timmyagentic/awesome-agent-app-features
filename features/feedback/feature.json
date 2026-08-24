@@ -92,25 +92,8 @@
     "Call Draft.Approve(true) only after the host receives the explicit user action.",
     "Submit Approved through feedback/httpclient.Client to the self-hosted HTTPS relay.",
     "Handle relay failure without exposing payloads or credentials, and offer the public issue fallback.",
-    "Add product-specific redaction and approval regression tests."
+    "Add product-specific redaction and approval regression tests, then record actual delivery, host-relative files, checks, and unverified boundaries in agent-app-features.lock.json."
   ],
-  "lifecycle": {
-    "inspect": [
-      "Compare the receipt's pinned module/subtree, preview and approval entry points, endpoint configuration keys, adapter artifacts, and every Feedback invariant with the current host without sending a report."
-    ],
-    "validate": [
-      "Rerun exact-commit remote conformance plus host cancellation, preview equivalence, redaction, stale-error, v1 endpoint, secret-safe failure, and fallback tests; keep live relay/client checks UNVERIFIED unless actually authorized."
-    ],
-    "refine": [
-      "At the same source commit, close receipt mapping gaps, product-specific redaction gaps, incomplete preview/fallback UX, or missing tests; do not silently change wire schema, approval semantics, or relay destination ownership."
-    ],
-    "upgrade": [
-      "Resolve one new CI-successful commit, compare Feedback public API, schema 1, endpoint, limits, delivery, and invariants before mutation, then upgrade module and relay subtree together and rerun host verification before updating the receipt source."
-    ],
-    "remove": [
-      "Disable feedback triggers and submission first, remove only integration-managed adapter and unshared relay artifacts, remove the module dependency only when unused elsewhere, run host verification, and retain a removed receipt without payloads or credentials."
-    ]
-  },
   "verification": {
     "remote": [
       "GOWORK=off go test github.com/timmyagentic/awesome-agent-app-features/compat/v1",

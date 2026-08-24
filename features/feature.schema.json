@@ -21,7 +21,6 @@
     "prerequisites",
     "invariants",
     "integration_steps",
-    "lifecycle",
     "verification"
   ],
   "properties": {
@@ -165,38 +164,6 @@
       "type": "array",
       "minItems": 1,
       "items": { "type": "string", "minLength": 1 }
-    },
-    "lifecycle": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["inspect", "validate", "refine", "upgrade", "remove"],
-      "properties": {
-        "inspect": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
-        },
-        "validate": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
-        },
-        "refine": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
-        },
-        "upgrade": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
-        },
-        "remove": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
-        }
-      }
     },
     "verification": {
       "type": "object",

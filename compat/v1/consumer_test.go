@@ -66,13 +66,12 @@ func TestFeedbackV1ConsumerContract(t *testing.T) {
 			Arch:    "test-arch",
 			Agent:   "test-agent",
 		},
-		InstallID: "consumer-1",
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	report := draft.Report()
-	if report.InstallID == "" || report.Environment.Product == "" || report.Description == "" ||
+	if report.Environment.Product == "" || report.Description == "" ||
 		report.RecentError == nil || len(report.CapabilityGaps) == 0 {
 		t.Fatalf("incomplete report: %+v", report)
 	}
@@ -91,9 +90,6 @@ func TestFeedbackV1ConsumerContract(t *testing.T) {
 	}
 	if _, err := json.Marshal(feedback.Approved{}); !errors.Is(err, feedback.ErrApprovalRequired) {
 		t.Fatalf("zero Approved MarshalJSON: %v", err)
-	}
-	if _, err := feedback.NewInstallID(); err != nil {
-		t.Fatalf("NewInstallID: %v", err)
 	}
 	_ = feedback.Redact("token=secret")
 	_ = feedback.ErrNothingToReport

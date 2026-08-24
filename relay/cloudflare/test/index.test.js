@@ -18,7 +18,6 @@ function submission(overrides = {}) {
   return {
     schema: 1,
     user_approved: true,
-    install_id: "install-1",
     environment: {
       product: "Example Agent",
       version: "v1.0.0",
@@ -104,10 +103,6 @@ test("validates the complete structured schema", async () => {
   );
   assert.equal(impossibleTime.status, 400);
   assert.match((await impossibleTime.json()).error, /occurred_at/);
-
-  const invalidInstallID = await worker.fetch(request(submission({ install_id: 123 })), env);
-  assert.equal(invalidInstallID.status, 400);
-  assert.match((await invalidInstallID.json()).error, /install_id/);
 
   const blankProduct = submission();
   blankProduct.environment.product = "   ";

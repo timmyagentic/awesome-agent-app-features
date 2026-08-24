@@ -9,13 +9,13 @@
 | Floating or local dependency bypasses review | Delivery forbids floating `main`, local `replace`, submodules, and a user-managed foundation checkout; Go records an immutable pseudo-version | A target maintainer can later change its dependency intentionally |
 | Source archive writes outside the intended host path | Only declared subtrees may be extracted in a temporary directory after entry inspection; traversal and symlinks are rejected | The copied subtree becomes host-owned and needs normal review thereafter |
 | Green CI is mistaken for publisher identity | Agents require successful CI as a quality gate | GitHub account/repository compromise remains in the trust root; higher-assurance users should require signed commits or independently rooted provenance |
-| A future Agent cannot tell what was integrated | A strict host receipt records exact source, deliveries, artifacts, invariants, evidence, uncertainty, and history | Receipt evidence can become stale; `inspect` and `validate` must compare it with current host state |
-| Receipt becomes a secret or telemetry dump | Schema permits configuration key names and relative paths, never values, payloads, logs, user IDs, credentials, or absolute machine paths | Free-text evidence still requires Agent redaction and review |
-| Remove deletes shared host code | Artifacts declare `integration-managed` or `host-shared`; only unshared candidates may be removed and a tombstone records retained paths | Incorrect ownership classification remains a host-review risk |
+| A future Agent cannot locate the integration | A visible minimal lock records exact source, deliveries, relative files, checks, and uncertainty | Lock evidence becomes stale; compare it with current code, dependencies, Git history, and tests |
+| Lock becomes a secret or telemetry dump | Its strict schema has no configuration values, payloads, logs, identifiers, credentials, or absolute paths | Free-text check names and uncertainty still require Agent review |
+| Removal deletes shared host code | The Agent inspects current references and Git history before deleting ordinary host files | Ownership remains a host-review decision; the lock does not claim authority |
 
 The discovery URL on `main` is not an immutable dependency and must never be copied into a target lockfile as one. A no-clone workflow removes user-managed checkout drift; it does not remove the need to review the resolved source and target-project changes.
 
-An `active` receipt is allowed only when every invariant is preserved or not applicable and remote plus host verification passed. A receipt with blockers must remain `partial`. Historical evidence, including a previously active receipt, is not proof of current behavior.
+`agent-app-features.lock.json` is maintenance metadata, not runtime state or completion proof. Historical success is never proof of current behavior.
 
 ## Feedback
 
@@ -26,7 +26,7 @@ An `active` receipt is allowed only when every invariant is preserved or not app
 | Approved POST replayed elsewhere | Client requires exact `/v1/feedback`, remote HTTPS, and refuses all redirects, including custom-client redirect policies | The configured relay receives the approved payload by design |
 | Client controls GitHub | v1 rejects title/body/repository/label fields; token, renderer, and repository are server-side | Relay operator must scope and rotate its credential |
 | Memory abuse | Request and GitHub response streams are bounded before JSON parsing | Valid maximum payloads still consume Worker resources |
-| Spam | Required Cloudflare rate-limit binding prefers connecting IP, then optional install ID | Data-center-local/eventually consistent counters are an abuse brake, not billing accounting; NAT can over-limit |
+| Spam | Required Cloudflare rate-limit binding uses connecting IP when available and one shared fallback bucket otherwise | Data-center-local/eventually consistent counters are an abuse brake, not billing accounting; NAT can over-limit |
 | Duplicate issue flood | Fingerprint derives from provider-neutral report content; open matches receive comments | GitHub search is eventually consistent, so uniqueness is best effort |
 
 Use a fine-grained GitHub token restricted to exactly one repository with Issues read/write. Store it only with `wrangler secret put`; never place it in source, `wrangler.jsonc`, application config, logs, fixtures, or client binaries.
@@ -41,8 +41,8 @@ Use a fine-grained GitHub token restricted to exactly one repository with Issues
 | Download corruption or archive bomb | Declared and streaming bounds, SHA-256 before extraction, one bounded regular-file entry | Host-chosen limits must fit its environment |
 | Wrong binary | Exact static or release-derived entry plus staged and installed version probes; content hashes must remain unchanged across both probes | The version probe executes code from the verified archive and must still be trusted and strict |
 | Broken replacement | Same-directory staging, directory sync, no-clobber hard-link backup, installed verification, rollback | Power-loss guarantees depend on the filesystem and platform |
-| Concurrent mutation | Per-updater operation gate, per-target process mutex, and OS file lock | Non-Unix fallback can leave a stale crash lock; operators must verify before removal |
-| Lock/target link attack | New and preflight checks reject executable symlinks; Unix lock open uses no-follow; non-regular locks fail | Parent-directory integrity remains an operator responsibility |
+| Concurrent mutation | Per-updater operation gate, per-target process mutex, and OS file lock on supported macOS/Linux targets | Unsupported operating systems are rejected; network-filesystem lock semantics remain outside the promise |
+| Lock/target link attack | New and preflight checks reject executable symlinks; lock open uses no-follow and rejects non-regular files | Parent-directory integrity remains an operator responsibility |
 | Recovery evidence overwritten | Existing `.update-backup` stops the transaction; backup creation cannot replace it | A retained backup requires deliberate operator cleanup |
 | Custom HTTP redirect escapes source | GitHub API redirects are refused; asset redirects require HTTPS and allowed GitHub/enterprise hosts | An explicitly trusted allowed host can still serve malicious bytes |
 

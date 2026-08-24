@@ -46,14 +46,12 @@ type Input struct {
 	RecentError    *RecentError
 	CapabilityGaps []string
 	Environment    Environment
-	InstallID      string
 }
 
 // Report is the complete provider-neutral preview a host must render before
 // approval. It deliberately cannot be JSON-marshaled; only Approved can cross
 // the provided transport boundary.
 type Report struct {
-	InstallID      string
 	Environment    Environment
 	Description    string
 	RecentError    *RecentError
@@ -119,7 +117,6 @@ func (approved Approved) MarshalJSON() ([]byte, error) {
 	type wireSubmission struct {
 		Schema         int              `json:"schema"`
 		UserApproved   bool             `json:"user_approved"`
-		InstallID      string           `json:"install_id,omitempty"`
 		Environment    wireEnvironment  `json:"environment"`
 		Description    string           `json:"description,omitempty"`
 		RecentError    *wireRecentError `json:"recent_error,omitempty"`
@@ -128,7 +125,6 @@ func (approved Approved) MarshalJSON() ([]byte, error) {
 	wire := wireSubmission{
 		Schema:       WireSchemaVersion,
 		UserApproved: true,
-		InstallID:    report.InstallID,
 		Environment: wireEnvironment{
 			Product: report.Environment.Product,
 			Version: report.Environment.Version,

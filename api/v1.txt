@@ -11,15 +11,14 @@ func (Builder) Build(Input) (Draft, error)
 func (Draft) Approve(bool) (Approved, error)
 func (Draft) Report() (Report)
 func (Report) MarshalJSON() ([]byte, error)
-func NewInstallID() (string, error)
 func Redact(string) (string)
 type Approved struct{opaque}
 type Builder struct{Now func() (time.Time); AdditionalRedact func(string) (string); ErrorMaxAge time.Duration}
 type Draft struct{opaque}
 type Environment struct{Product string; Version string; OS string; Arch string; Agent string}
-type Input struct{Description string; RecentError *RecentError; CapabilityGaps []string; Environment Environment; InstallID string}
+type Input struct{Description string; RecentError *RecentError; CapabilityGaps []string; Environment Environment}
 type RecentError struct{Text string; At time.Time}
-type Report struct{InstallID string; Environment Environment; Description string; RecentError *RecentError; CapabilityGaps []string}
+type Report struct{Environment Environment; Description string; RecentError *RecentError; CapabilityGaps []string}
 var ErrApprovalRequired error
 var ErrNothingToReport error
 

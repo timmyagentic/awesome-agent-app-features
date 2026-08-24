@@ -22,7 +22,7 @@ host product
 | Security policy and deterministic transactions | Intent detection, administrator policy, configuration UX |
 | HTTP, GitHub Release, and filesystem adapters | Install-kind selection, restart, acknowledgement |
 | Neutral progress events and structured results | Channel SDKs, localization, analytics, support workflow |
-| Manifests, examples, shared fixtures, API/consumer gates | Glue code and host-specific regression/E2E tests |
+| Manifests, actions, plan/receipt schemas, examples, shared fixtures, API/consumer gates | Glue code, sanitized receipt, and host-specific regression/E2E tests |
 
 A Feishu card or terminal prompt is always a host renderer. A GitHub release source or HTTPS transport can live here because it implements a provider port without choosing the host experience.
 
@@ -75,6 +75,7 @@ Agent-friendly does not mean a Codex Skill, blind installer, or a user-managed f
 - `features/index.json` is the single remote discovery and delivery entry.
 - `features/*/feature.json` declares ownership, prerequisites, invariants, and commands.
 - `features/integration-plan.schema.json` makes the host mapping and remaining uncertainty reviewable.
+- `features/integration-receipt.schema.json` preserves exact source, host artifacts, invariants, evidence, uncertainty, and history after the Agent leaves.
 - Feature READMEs describe the low-level contract.
 - `docs/agent-integration.md` defines the host inventory and mapping process.
 - Remote `go run package@commit` examples prove the intended public API without a clone.
@@ -82,5 +83,21 @@ Agent-friendly does not mean a Codex Skill, blind installer, or a user-managed f
 - Host tests prove the last-mile adapter retained every invariant.
 
 Go packages are delivered through the module cache at the resolved commit. Infrastructure templates are delivered by extracting only declared source subtrees from the same commit. Git submodules, local replaces, floating main references, and a user-managed second checkout are outside the integration model.
+
+Lifecycle remains Agent-driven and typed:
+
+```text
+integrate -> partial | active receipt
+                 |
+        inspect / validate / refine
+                 |
+              upgrade
+                 |
+               remove -> removed receipt tombstone
+
+list reads every local receipt without mutation
+```
+
+The foundation owns action semantics and receipt structure. The host owns the files and product behavior named by the receipt. A receipt is evidence and maintenance metadata, not a runtime control plane; it cannot replace current host tests or authorize production operations.
 
 The architecture test rejects channel/product terms and third-party imports in core source files. This is a guardrail; an architectural boundary change still requires human review.

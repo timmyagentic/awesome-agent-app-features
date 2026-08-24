@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "schema",
+    "receipt_path",
     "source",
     "feature",
     "host",
@@ -18,6 +19,10 @@
   "properties": {
     "$schema": { "type": "string" },
     "schema": { "const": 1 },
+    "receipt_path": {
+      "type": "string",
+      "pattern": "^\\.agent-app-features/[a-z][a-z0-9-]*\\.json$"
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,

@@ -106,11 +106,17 @@ jobs:
           jq -e '
             .delivery.user_clone_required == false and
             .resolution.fetch.same_commit_required == true and
-            .resolution.immutable_ref == "full-commit-sha"
+            .resolution.immutable_ref == "full-commit-sha" and
+            .receipt.contains_secrets == false and
+            ([.actions[].id] == ["integrate", "inspect", "validate", "refine", "upgrade", "remove", "list"])
           ' <<<"${entry}" >/dev/null
           while IFS= read -r manifest; do
             curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${manifest}" | jq -e '.contract == "v1" and .delivery != []' >/dev/null
           done < <(jq -r '.features[].manifest' <<<"${entry}")
+          receipt_schema="$(jq -r '.receipt.schema_path' <<<"${entry}")"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${receipt_schema}" | jq -e '."$schema" == "https://json-schema.org/draft/2020-12/schema"' >/dev/null
+          receipt_example="$(jq -r '.receipt.example_path' <<<"${entry}")"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${receipt_example}" | jq -e '.schema == 1 and .state == "active"' >/dev/null
 
           consumer_directory="$(mktemp -d)"
           archive_path="${consumer_directory}/foundation.tar.gz"

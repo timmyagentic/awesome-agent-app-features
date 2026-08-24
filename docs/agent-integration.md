@@ -56,8 +56,29 @@ curl --fail --silent --show-error --location --proto '=https' \
 - 每条 foundation/adapter/host responsibility 的落点。
 - 每条 invariant 的 `preserved`、`not-applicable` 或 `blocked` 证据。
 - 将修改的宿主文件、聚焦测试、完整验证与 `UNVERIFIED` 项。
+- 预期 receipt 路径 `.agent-app-features/<feature>.json`。
 
 [integration-plan.example.json](../features/integration-plan.example.json) 只是结构示例，不是可复用的宿主决策。
+
+## 持久 Receipt
+
+Agent 在代码和验证结束后，按同一 SHA 获取 `features/integration-receipt.schema.json`，并把结果写入 integration plan 声明的 receipt 路径。完整结构示例见 [host-receipt](../examples/host-receipt/)。
+
+Receipt 是后续 Agent 的维护入口，不是运行时配置。它必须：
+
+- 记录 exact source commit、成功 CI run、entry 和 feature manifest。
+- 记录实际选择的 delivery、resolved module version 和宿主 target。
+- 只记录宿主相对路径、入口名称和配置键名，不记录配置值。
+- 完整复制 manifest invariants，并为每一条记录状态和清洗后的证据。
+- 区分 remote、foundation、host 和 production 验证；失败不能写成 passed。
+- 记录 `UNVERIFIED`、action history 和 removal evidence。
+- 不包含 Token、Cookie、用户/群 ID、payload、原始日志、绝对路径或源码副本。
+
+Receipt 状态：
+
+- `partial`：接入已有实现或证据，但仍有 blocked invariant 或关键验证失败/缺失。
+- `active`：没有 blocked invariant，至少 remote 和 host 验证成功。
+- `removed`：接入已移除，receipt 作为 tombstone 保留，记录 removed/retained paths。
 
 ## Delivery modes
 
@@ -91,6 +112,38 @@ GOWORK=off go run "github.com/timmyagentic/awesome-agent-app-features/examples/u
 ```
 
 Feedback 示例只显示 preview。Updater 示例只在临时目录执行完整 prepare/apply/checksum/version/replace 流程，不访问真实 Release 或已安装产品。
+
+## Typed lifecycle actions
+
+Action 定义来自 exact-SHA `features/index.json`，不是 Skill、shell installer 或平台插件。
+
+### `integrate`
+
+要求 receipt 不存在或为 `removed`。解析 source、生成 plan、应用 declared delivery、实现宿主映射并验证，然后写入 `active` 或诚实的 `partial` receipt。
+
+### `inspect`
+
+只读比较 receipt 与实际依赖、source SHA、delivery target、artifacts、宿主入口、invariants、verification 和 `UNVERIFIED`。不访问生产、不自动修复、不修改 receipt。
+
+### `validate`
+
+固定 receipt 当前 source commit，重跑适用的 `verification.remote` 与宿主验证。只更新清洗后的 evidence、invariant status、`UNVERIFIED`、时间和 history；不修改宿主实现。
+
+### `refine`
+
+保持 source commit 不变，补齐宿主映射、UX、fallback、恢复和测试。记录每个新增/修改 artifact，重新验证后追加 history。
+
+### `upgrade`
+
+解析一个新的 CI-successful commit，先比较 contract、公开 API、wire schema、delivery 和 invariants。只有兼容性与迁移路径明确时，才把全部选中 delivery 一起更新到新 SHA；禁止 mixed-source。成功验证后更新 receipt，并把旧 SHA 留在 history。
+
+### `remove`
+
+先禁用产品入口，再只删除 `integration-managed/candidate` 且确认未共享的资产。共享文件、配置容器和仍被其他代码使用的 dependency 必须保留。完成宿主验证后把 receipt 标为 `removed`，记录 removed/retained paths，不删除 tombstone。
+
+### `list`
+
+只在本地读取 `.agent-app-features/*.json`，列出 Feature、state、contract、source commit、last action 和 drift。默认不访问网络。
 
 ## Feedback 宿主盘点
 
@@ -145,5 +198,6 @@ Agent 只有在以下条件满足时才能报告接入完成：
 - feature manifest 的 `verification.remote` 与适用的 `verification.host` 已执行。
 - 目标项目的正常完整验证已执行。
 - 真实客户端、生产凭证、部署、重启或付费检查未执行时明确标为 `UNVERIFIED`。
+- `.agent-app-features/<feature>.json` 已通过 exact-source receipt schema，且内容与 manifest、实际 delivery 和宿主文件一致。
 
-不允许用用户 clone、本地 `replace`、浮动 `main`、临时成功输出或 foundation 自身测试替代宿主验证。
+不允许用用户 clone、本地 `replace`、浮动 `main`、临时成功输出、历史 receipt 或 foundation 自身测试替代当前宿主验证。

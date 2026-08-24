@@ -1,6 +1,7 @@
 {
   "$schema": "./integration-plan.schema.json",
   "schema": 1,
+  "receipt_path": ".agent-app-features/feedback.json",
   "source": {
     "repository": "timmyagentic/awesome-agent-app-features",
     "resolved_commit": "43b0166c299122c6980f631054b5705f23ed00af",

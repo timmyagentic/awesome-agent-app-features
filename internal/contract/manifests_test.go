@@ -46,6 +46,14 @@ type verification struct {
 	Host       []string `json:"host"`
 }
 
+type lifecycle struct {
+	Inspect  []string `json:"inspect"`
+	Validate []string `json:"validate"`
+	Refine   []string `json:"refine"`
+	Upgrade  []string `json:"upgrade"`
+	Remove   []string `json:"remove"`
+}
+
 type foundation struct {
 	Core     []string  `json:"core"`
 	Adapters []adapter `json:"adapters"`
@@ -71,6 +79,7 @@ type manifest struct {
 	Prerequisites    []string        `json:"prerequisites"`
 	Invariants       []string        `json:"invariants"`
 	IntegrationSteps []string        `json:"integration_steps"`
+	Lifecycle        lifecycle       `json:"lifecycle"`
 	Verification     verification    `json:"verification"`
 	Relay            string          `json:"relay,omitempty"`
 	Platforms        []string        `json:"platforms,omitempty"`
@@ -196,6 +205,11 @@ func TestFeatureManifestsAreCompleteAndPointToCode(t *testing.T) {
 			"prerequisites":           item.Prerequisites,
 			"invariants":              item.Invariants,
 			"integration_steps":       item.IntegrationSteps,
+			"lifecycle.inspect":       item.Lifecycle.Inspect,
+			"lifecycle.validate":      item.Lifecycle.Validate,
+			"lifecycle.refine":        item.Lifecycle.Refine,
+			"lifecycle.upgrade":       item.Lifecycle.Upgrade,
+			"lifecycle.remove":        item.Lifecycle.Remove,
 			"verification.remote":     item.Verification.Remote,
 			"verification.foundation": item.Verification.Foundation,
 			"verification.host":       item.Verification.Host,

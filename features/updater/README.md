@@ -25,3 +25,5 @@ Static archives use `BinaryName`. Archives whose entry changes by tag/OS/arch us
 All host entry points share one updater configuration. They may render events differently but cannot duplicate stable selection or replacement policy. `UpdateLatest` is for an already-authorized non-interactive action. Restart and acknowledgement always remain host-owned.
 
 The standalone adapter supports macOS/Linux regular executable paths. npm, Homebrew, symlink installations, and Windows require explicit install-kind adapters with honest verification and recovery behavior.
+
+After integration, keep `.agent-app-features/updater.json` aligned with this manifest. Its artifact ownership prevents removal from deleting shared host entry points or recovery material; its history preserves prior source commits across upgrades. Run the manifest's `lifecycle` steps rather than reconstructing maintenance policy from code.

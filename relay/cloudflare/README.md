@@ -51,3 +51,5 @@ npm audit --audit-level=high
 The Worker has structured error logging, bounded request/upstream reads, a 15-second GitHub timeout, no global request state, and no floating promises. Compatibility date, bindings, observability, and non-secret vars live in `wrangler.jsonc`.
 
 The copied subtree becomes host-owned infrastructure. Future updates must repeat the same immutable-ref extraction and review rather than following floating `main`; no production deployment is implied by adding the files.
+
+An integration receipt may record the subtree source and target, relative artifact path, configuration key names, source CI, and verification status. It must never record `GITHUB_TOKEN`, endpoint values, repository credentials, issue payloads, or raw Worker logs.

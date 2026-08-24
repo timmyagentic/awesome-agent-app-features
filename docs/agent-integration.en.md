@@ -56,8 +56,29 @@ The plan records:
 - The location of every foundation, adapter, and host responsibility.
 - Evidence that each invariant is `preserved`, `not-applicable`, or `blocked`.
 - Target files, focused tests, full verification, and `UNVERIFIED` boundaries.
+- Expected receipt path `.agent-app-features/<feature>.json`.
 
 `integration-plan.example.json` demonstrates structure only; it does not contain reusable host decisions.
+
+## Persistent receipt
+
+After code and verification, fetch `features/integration-receipt.schema.json` from the same SHA and write the result to the receipt path declared by the plan. See the complete [host receipt example](../examples/host-receipt/).
+
+The receipt is the maintenance entry for future agents, not runtime configuration. It:
+
+- Records exact source commit, successful CI run, entry, and feature manifest.
+- Records selected delivery, resolved module version, and host target.
+- Uses only host-relative paths, entry-point names, and configuration key names—not values.
+- Copies every manifest invariant with status and sanitized evidence.
+- Separates remote, foundation, host, and production verification; failed is never passed.
+- Records `UNVERIFIED`, action history, and removal evidence.
+- Contains no tokens, cookies, user/chat IDs, payloads, raw logs, absolute paths, or copied source.
+
+States:
+
+- `partial`: implementation or evidence exists, but an invariant is blocked or required proof is missing/failed.
+- `active`: no invariant is blocked and remote plus host verification passed.
+- `removed`: integration is gone; the receipt remains as a tombstone with removed and retained paths.
 
 ## Delivery modes
 
@@ -87,6 +108,38 @@ GOWORK=off go run "github.com/timmyagentic/awesome-agent-app-features/examples/u
 
 The Feedback example only renders a preview. The Updater example runs a full transaction against a temporary fake executable, with no Release request or installed-product mutation.
 
+## Typed lifecycle actions
+
+Actions come from exact-SHA `features/index.json`; they are not Skills, shell installers, or platform plugins.
+
+### `integrate`
+
+Requires an absent or removed receipt. Resolve source, create the plan, apply declared delivery, implement host mappings, verify, then write an `active` or honest `partial` receipt.
+
+### `inspect`
+
+Read-only comparison of the receipt with dependency, source SHA, delivery targets, artifacts, host entry points, invariants, verification, and `UNVERIFIED`. It performs no production call, repair, or receipt mutation.
+
+### `validate`
+
+Keep the receipt's source commit fixed and rerun applicable remote and host checks. Update only sanitized evidence, invariant status, `UNVERIFIED`, timestamps, and history.
+
+### `refine`
+
+Keep the source commit unchanged while closing host mapping, UX, fallback, recovery, and test gaps. Record every changed artifact, rerun verification, and append history.
+
+### `upgrade`
+
+Resolve a new CI-successful commit and compare contract, public API, wire schema, delivery, and invariants before mutation. Move every selected delivery to the same new SHA; mixed-source upgrades are forbidden. Retain the prior SHA in history.
+
+### `remove`
+
+Disable product entry points first. Delete only unshared `integration-managed/candidate` artifacts. Retain shared files, configuration containers, and dependencies still used elsewhere. Verify the host and keep a `removed` receipt tombstone.
+
+### `list`
+
+Read local `.agent-app-features/*.json` and report feature, state, contract, source commit, last action, and drift without network access.
+
 ## Feedback host inventory
 
 Record the trigger, complete preview surface, explicit approval action, product-specific redaction, trusted environment sources, optional install identity, relay configuration, and public fallback.
@@ -114,5 +167,6 @@ The agent reports completion only when:
 - Applicable `verification.remote` and `verification.host` steps passed.
 - The target project's normal complete verification passed.
 - Unavailable client, credential, deployment, restart, paid, or production checks are marked `UNVERIFIED`.
+- `.agent-app-features/<feature>.json` passes the exact-source receipt schema and matches the manifest, actual delivery, and host files.
 
-A user-managed clone, local `replace`, floating `main`, temporary output, or foundation-only test run is not host verification.
+A user-managed clone, local `replace`, floating `main`, temporary output, historical receipt, or foundation-only test run is not current host verification.

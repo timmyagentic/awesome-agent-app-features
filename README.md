@@ -2,13 +2,13 @@
 
 [English](README.en.md) · [Agent 接入指南](docs/agent-integration.md) · [兼容策略](COMPATIBILITY.md) · [安全模型](docs/security.md)
 
-给 Agent 应用复用的无界面 Feature 基座。使用者只需要停留在自己的目标项目中，告诉 coding agent 要接入哪个 feature；Agent 从官方远程入口解析契约、固定一个 commit SHA、添加所需依赖或模板，再按宿主架构编写适配。卡片、命令、权限、本地化、重启与业务流程始终留在宿主项目。
+给 Agent 应用复用的无界面 Feature 基座，也是一个 Agent-driven Feature integrator。使用者只需要停留在自己的目标项目中，告诉 coding agent 要接入、检查、优化、升级或移除哪个 feature；Agent 从官方远程入口解析契约、固定一个 commit SHA、添加所需依赖或模板，再按宿主架构编写和持续维护适配。卡片、命令、权限、本地化、重启与业务流程始终留在宿主项目。
 
 这不是 awesome 链接清单、Codex Skills 集合、UI 框架或托管 SaaS。当前未发布的 `v1` 契约收稳三个接入层面的结果：
 
 | 能力 | 本仓库提供 | 宿主产品提供 |
 | --- | --- | --- |
-| Agent 友好接入 | machine-readable manifests、边界、示例、API/消费者契约和验证命令 | coding agent 按现有架构编写胶水代码并跑宿主测试 |
+| Agent 友好接入 | 远程入口、typed actions、manifests、宿主 plan/receipt schema、示例、API/消费者契约和验证命令 | coding agent 按现有架构编写胶水代码、维护 receipt 并跑宿主测试 |
 | Feedback | 脱敏 `Draft`、不可序列化预览、显式 `Approved`、Feedback v1 HTTPS client、单租户 Cloudflare relay | 触发时机、飞书/Slack/CLI/Web 呈现、确认动作、失败体验 |
 | Updater | immutable exact plan、stable-only、同 release checksum、双版本验证、锁、no-clobber backup、回滚 | 更新提示、授权、安装类型判断、重启与重启后确认 |
 
@@ -37,7 +37,8 @@ https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/f
 成功；之后所有入口、manifest、文档、依赖和模板都固定到同一 SHA。
 先按 integration-plan schema 盘点并映射宿主，再实现薄适配层和测试。
 保留所有 invariants；无法执行的真实客户端、凭证、部署或重启验证标为
-UNVERIFIED。
+UNVERIFIED。完成后把无敏感信息的接入记录写到
+.agent-app-features/<feature>.json。
 ```
 
 项目尚未发布版本。评估当前 v1 契约时请使用 Go 1.25 或更高版本，并固定到你已经审查的完整 commit SHA，不要依赖浮动的 `main`：
@@ -89,7 +90,7 @@ approved, err := draft.Approve(true)
 if err != nil {
     return err
 }
-receipt, err := (httpclient.Client{
+submissionReceipt, err := (httpclient.Client{
     Endpoint: "https://feedback.example/v1/feedback",
 }).Submit(ctx, approved)
 ```
@@ -136,11 +137,30 @@ Agent 以 [features/index.json](features/index.json) 为唯一入口，从同一
 
 `go-module` delivery 通过精确 SHA 增加依赖；`source-subtree` delivery 只从同一 SHA 的 GitHub archive 或 Contents API 提取声明目录到宿主基础设施。Agent 可以在临时目录或语言包缓存中下载内容，但不能让使用者管理本仓库的第二份检出。
 
+接入完成或部分完成后，Agent 必须按 [integration-receipt.schema.json](features/integration-receipt.schema.json) 写入 `.agent-app-features/<feature>.json`。Receipt 记录 exact source/CI、选定 delivery、宿主入口和配置键名、接入文件、每条 invariant、验证证据、`UNVERIFIED` 和历史；不得记录配置值、凭证、payload、日志、用户 ID 或绝对路径。
+
+## 持续维护生命周期
+
+远程入口定义七个 typed Agent actions：
+
+| Action | 作用 | 修改范围 |
+| --- | --- | --- |
+| `integrate` | 第一次接入或从 removed tombstone 重新接入 | 宿主 + receipt |
+| `inspect` | 对比 receipt、依赖、文件和宿主接线，报告 drift | 只读 |
+| `validate` | 重跑 exact-source remote/host 验证并更新证据 | 仅 receipt |
+| `refine` | 在同一 source commit 下补齐宿主体验、映射和测试 | 宿主 + receipt |
+| `upgrade` | 比较契约后把所有 delivery 一起迁到新 SHA | 宿主 + receipt |
+| `remove` | 只移除 integration-managed 且未共享的资产 | 宿主 + removed receipt |
+| `list` | 本地列出 active、partial 和 removed receipts | 只读 |
+
+`active` receipt 不允许 blocked invariant，并必须至少有 remote 与 host 两层成功验证；有 blocker 时必须保留为 `partial`。移除后 receipt 不删除，而是保留 `state: removed` 的审计 tombstone。完整示例见 [host-receipt](examples/host-receipt/)。
+
 宿主侧的飞书卡片只是 `Report`/`Plan`/`Event` 的 renderer，不能进入本仓库。完整所有权边界见 [docs/architecture.md](docs/architecture.md)。
 
 ## 安全边界
 
 - 远程入口先解析为完整 commit SHA；入口、manifest、依赖、示例和模板必须来自同一 SHA，且该提交 CI 成功。
+- Receipt 只记录相对路径、配置键名和清洗后的证据；不保存配置值、凭证、用户标识、payload 或原始日志。
 - Feedback 不在后台提交；`Approved` 必须来自明确用户动作。
 - 默认脱敏、固定环境白名单和 UTF-8 byte limits 在 Go 与 relay 两侧重复执行。
 - 普通更新只接受精确 `v?X.Y.Z` stable tag；draft、prerelease 和前导零版本会被拒绝。
@@ -155,8 +175,9 @@ Agent 以 [features/index.json](features/index.json) 为唯一入口，从同一
 api/v1.txt                    v1 公开 API 快照
 compat/v1                     只使用公开符号的外部消费者编译契约
 features/index.json           无 Clone 远程 Agent 单一入口
-features/*.schema.json        入口、Feature 与宿主计划契约
+features/*.schema.json        入口、Feature、宿主计划与 Receipt 契约
 features/*/feature.json       Agent 可读的接入 manifest
+examples/host-receipt/        宿主 .agent-app-features receipt 示例
 feedback/                     Provider-neutral Feedback core
 feedback/httpclient/          Feedback v1 HTTPS adapter
 protocol/feedback/v1/         JSON Schema 与 Go/JS 共享 fixtures

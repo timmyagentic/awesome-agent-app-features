@@ -2,13 +2,13 @@
 
 [中文](README.md) · [Agent integration](docs/agent-integration.en.md) · [Compatibility](COMPATIBILITY.md) · [Security](docs/security.md)
 
-Headless feature-foundation code for agent applications. The user stays in the target project and tells a coding agent which feature to integrate. The agent resolves the official remote entry to one commit SHA, adds only the declared dependency or template, and writes the host-specific adapter. Cards, commands, authorization, localization, restart behavior, and product flow remain in the host.
+Headless feature-foundation code for agent applications and an agent-driven feature integrator. The user stays in the target project and tells a coding agent which feature to integrate, inspect, refine, upgrade, or remove. The agent resolves the official remote entry to one commit SHA, adds only the declared dependency or template, and continuously maintains the host-specific adapter. Cards, commands, authorization, localization, restart behavior, and product flow remain in the host.
 
 This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The currently unreleased `v1` contract stabilizes three integration outcomes:
 
 | Capability | This repository provides | The host product provides |
 | --- | --- | --- |
-| Agent-friendly integration | Machine-readable manifests, boundaries, examples, API/consumer contracts, and verification commands | Glue code fitted to the existing architecture plus host tests |
+| Agent-friendly integration | Remote entry, typed actions, manifests, host plan/receipt schemas, examples, API/consumer contracts, and verification commands | Glue code fitted to the existing architecture, durable receipt, and host tests |
 | Feedback | Redacted `Draft`, non-serializable preview, explicit `Approved`, Feedback v1 HTTPS client, single-tenant Cloudflare relay | Trigger timing, Feishu/Slack/CLI/web rendering, confirmation, and failure UX |
 | Updater | Immutable exact plan, stable-only selection, same-release checksum, two version checks, locks, no-clobber backup, and rollback | Update prompt, authorization, install-kind detection, restart, and acknowledgement |
 
@@ -34,7 +34,8 @@ require successful CI for that SHA. Pin the entry, manifest, documentation,
 dependency, and template to the same SHA. First map the host using the
 integration-plan schema, then implement the thin adapter and tests. Preserve
 every invariant and mark unavailable client, credential, deployment, or
-restart checks as UNVERIFIED.
+restart checks as UNVERIFIED. Write the sanitized integration record to
+.agent-app-features/<feature>.json.
 ```
 
 No version has been published yet. To evaluate the current v1 contract, use Go 1.25 or newer and pin an exact reviewed commit SHA rather than floating `main`:
@@ -85,7 +86,7 @@ approved, err := draft.Approve(true)
 if err != nil {
     return err
 }
-receipt, err := (httpclient.Client{
+submissionReceipt, err := (httpclient.Client{
     Endpoint: "https://feedback.example/v1/feedback",
 }).Submit(ctx, approved)
 ```
@@ -132,11 +133,30 @@ The agent uses [features/index.json](features/index.json) as the only entry and 
 
 A `go-module` delivery adds the exact SHA as a dependency. A `source-subtree` delivery extracts only the declared directory from the same-SHA GitHub archive or Contents API into host infrastructure. The agent may use temporary downloads or language package caches internally, but the user never manages a second checkout of this repository.
 
+After a complete or partial integration, the agent writes `.agent-app-features/<feature>.json` against [integration-receipt.schema.json](features/integration-receipt.schema.json). The receipt records exact source/CI, selected delivery, host entry points and configuration key names, integration files, every invariant, verification evidence, `UNVERIFIED` boundaries, and history. It never stores configuration values, credentials, payloads, logs, user IDs, or absolute paths.
+
+## Lifecycle
+
+The remote entry defines seven typed Agent actions:
+
+| Action | Purpose | Mutation scope |
+| --- | --- | --- |
+| `integrate` | First integration or re-integration from a removed tombstone | Host + receipt |
+| `inspect` | Compare receipt, dependencies, files, and wiring for drift | Read-only |
+| `validate` | Rerun exact-source remote/host checks and refresh evidence | Receipt only |
+| `refine` | Close host UX, mapping, and test gaps at the same source commit | Host + receipt |
+| `upgrade` | Compare contracts and move every delivery to one new SHA | Host + receipt |
+| `remove` | Remove only unshared integration-managed artifacts | Host + removed receipt |
+| `list` | Inventory active, partial, and removed local receipts | Read-only |
+
+An `active` receipt cannot contain a blocked invariant and must include successful remote and host verification. Work with blockers remains `partial`. Removal retains a `state: removed` audit tombstone. See the complete [host receipt example](examples/host-receipt/).
+
 A host Feishu card is only a renderer for `Report`, `Plan`, or `Event`; it does not belong in this repository. See [docs/architecture.md](docs/architecture.md) for the ownership model.
 
 ## Security boundaries
 
 - Resolve the remote entry to a full commit SHA; entry, manifest, dependency, examples, and templates must use that same CI-successful SHA.
+- Receipts contain only relative paths, configuration key names, and sanitized evidence—never values, credentials, identifiers, payloads, or raw logs.
 - Feedback is never sent in the background; `Approved` must follow an explicit user action.
 - Default redaction, fixed environment allowlists, and UTF-8 byte limits are enforced in both Go and the relay.
 - Ordinary updates accept only exact `v?X.Y.Z` stable tags; drafts, prereleases, and leading-zero versions fail closed.
@@ -151,8 +171,9 @@ A host Feishu card is only a renderer for `Report`, `Plan`, or `Event`; it does 
 api/v1.txt                    v1 public API snapshot
 compat/v1                     external-consumer compile contract
 features/index.json           single no-clone remote agent entry
-features/*.schema.json        entry, feature, and host-plan contracts
+features/*.schema.json        entry, feature, host-plan, and receipt contracts
 features/*/feature.json       agent-readable integration manifests
+examples/host-receipt/        target .agent-app-features receipt example
 feedback/                     provider-neutral Feedback core
 feedback/httpclient/          Feedback v1 HTTPS adapter
 protocol/feedback/v1/         JSON Schema and shared Go/JS fixtures

@@ -29,3 +29,5 @@ Cards, buttons, localized text, fallback UX, and intent belong in the host. GitH
 Use [Feedback v1](../../docs/protocol-feedback-v1.md) for the exact wire contract and [security.md](../../docs/security.md) for residual risk.
 
 The Go core and HTTPS client use `go-module` delivery. The optional Cloudflare relay uses `source-subtree` delivery: the Agent extracts only `relay/cloudflare` from the same resolved commit into host-owned infrastructure.
+
+After integration, keep `.agent-app-features/feedback.json` aligned with this manifest. Use the manifest's `lifecycle` steps for inspect, validate, same-source refinement, exact-source upgrade, and safe removal. Receipt evidence names configuration keys but never endpoint values, tokens, payloads, logs, or user identifiers.

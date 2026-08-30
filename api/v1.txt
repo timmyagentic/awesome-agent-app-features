@@ -59,7 +59,7 @@ type CommandVersionVerifier struct{Args []string; ExpectedLine func(string) (str
 type Config struct{Product string; CurrentVersion string; ExecutablePath string; BinaryName string; ArchiveBinaryName BinaryNameFunc; ChecksumsAsset string; AssetName AssetNameFunc; Source Source; Verifier VersionVerifier; MaxArchiveSize int64; MaxBinarySize int64; Progress func(Event)}
 type Event struct{Product string; Stage Stage; CurrentVersion string; TargetVersion string; Asset string; Bytes int64}
 type Plan struct{opaque}
-type Release struct{Tag string; URL string; Draft bool; Prerelease bool; Assets []Asset}
+type Release struct{Tag string; URL string; Notes string; Draft bool; Prerelease bool; Assets []Asset}
 type Result struct{Release Release; Updated bool; ArchiveAsset string; BackupRetainedAt string}
 type Source interface{Download(context.Context, Asset, io.Writer) (error); LatestStable(context.Context) (Release, error)}
 type Stage string

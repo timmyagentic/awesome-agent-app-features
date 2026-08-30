@@ -28,6 +28,6 @@ Cards, buttons, localized text, fallback UX, and intent belong in the host. GitH
 
 Use [Feedback v1](../../docs/protocol-feedback-v1.md) for the exact wire contract and [security.md](../../docs/security.md) for residual risk.
 
-The Go core and HTTPS client use `go-module` delivery. The optional Cloudflare relay uses `source-subtree` delivery: the Agent extracts only `relay/cloudflare` from the same resolved commit into host-owned infrastructure.
+The Go core and HTTPS client use `go-module` delivery. The optional Cloudflare relay uses `source-subtree` delivery: the Agent extracts only `relay/cloudflare` from the same resolved commit into host-owned infrastructure. That copied directory is self-contained and must independently pass its locked install, unit/workerd tests, syntax, generated-binding type checks, Wrangler dry-run, and dependency audit without reaching back into the foundation root.
 
-After integration, record the exact source, actual deliveries, host-relative files, successful checks, and `UNVERIFIED` boundaries in the target's visible `agent-app-features.lock.json`. Never store endpoint values, tokens, payloads, logs, or user identifiers there.
+After integration, record the exact source, actual deliveries, host-relative files, successful checks, and `UNVERIFIED` boundaries in the target's visible `agent-app-features.lock.json`, then run the same-commit `cmd/feature-lock` validator. Never store endpoint values, tokens, payloads, logs, or user identifiers there.

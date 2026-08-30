@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { afterEach, beforeEach, test } from "node:test";
 
-import worker, { _test } from "../src/index.js";
+import worker from "../src/index.js";
+import { _test } from "../src/relay.js";
 
 function rateLimiter(limit = 5) {
   let count = 0;
@@ -214,25 +214,6 @@ test("uses only the Feedback v1 route and requires JSON", async () => {
   );
   assert.equal(wrongMethod.status, 405);
   assert.equal(wrongMethod.headers.get("allow"), "POST");
-});
-
-test("shares Feedback v1 wire fixtures with the Go producer", async () => {
-  const fixtureURL = (name) =>
-    new URL(`../../../protocol/feedback/v1/testdata/${name}`, import.meta.url);
-  for (const name of ["valid-full.json", "valid-minimal.json"]) {
-    const value = JSON.parse(await readFile(fixtureURL(name), "utf8"));
-    assert.equal(_test.validateSubmission(value), null, name);
-  }
-  for (const name of [
-    "invalid-schema-v2.json",
-    "invalid-unapproved.json",
-    "invalid-presentation-field.json",
-    "invalid-duplicate-gap.json",
-    "invalid-blank-product.json",
-  ]) {
-    const value = JSON.parse(await readFile(fixtureURL(name), "utf8"));
-    assert.notEqual(_test.validateSubmission(value), null, name);
-  }
 });
 
 test("fails closed when server-side destination is missing", async () => {

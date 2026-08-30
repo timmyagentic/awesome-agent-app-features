@@ -42,6 +42,12 @@ UI framework, or Codex Skills collection.
   source, deliveries, relative files, checks, and `UNVERIFIED` boundaries. It
   must not contain values, credentials, payloads, logs, identifiers, absolute
   paths, copied source, lifecycle state, or history.
+- Validate that lock with the same-commit `cmd/feature-lock` command against a
+  temporary exact-source extraction and the real host root. The validator is a
+  stateless consistency check, not an integration database or completion proof.
+- A declared source subtree must pass its own install, test, generated-type,
+  syntax, dry-run, and audit gates after independent extraction; foundation-root
+  files or dependencies cannot make a delivery appear self-contained.
 - The lock is maintenance metadata only. Git owns history, current code owns
   file relationships, and host tests own truth. Do not build another action or
   lifecycle state machine into the foundation.

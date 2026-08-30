@@ -1,0 +1,282 @@
+package lockcheck
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+	"time"
+)
+
+const testCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+const testVersion = "v0.0.0-20260830000000-aaaaaaaaaaaa"
+
+func TestValidateAcceptsExactDeclaredHostIntegration(t *testing.T) {
+	options := validOptions(t)
+	report, err := Validate(context.Background(), options)
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if report.Features != 1 || report.Files != 4 || report.GoModules != 1 || report.SourceSubtrees != 1 {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestValidateResolvesRelativeLockInsideHostRoot(t *testing.T) {
+	options := validOptions(t)
+	options.LockPath = "agent-app-features.lock.json"
+	if _, err := Validate(context.Background(), options); err != nil {
+		t.Fatalf("Validate relative lock: %v", err)
+	}
+}
+
+func TestValidateAcceptsRemainingFeatureAfterRemoval(t *testing.T) {
+	options := validOptions(t)
+	lock := readLockMap(t, options.LockPath)
+	lock["features"] = []any{
+		map[string]any{
+			"id":       "updater",
+			"contract": "v1",
+			"deliveries": []any{
+				map[string]any{
+					"mode":    "go-module",
+					"source":  "github.com/timmyagentic/awesome-agent-app-features/updater",
+					"target":  "go.mod",
+					"version": testVersion,
+				},
+			},
+			"files":       []any{"go.mod", "go.sum"},
+			"verified_at": "2026-08-30T00:00:00Z",
+			"checks":      []any{"go test ./..."},
+			"unverified":  []any{},
+		},
+	}
+	writeJSON(t, options.LockPath, lock)
+	report, err := Validate(context.Background(), options)
+	if err != nil {
+		t.Fatalf("Validate after removal: %v", err)
+	}
+	if report.Features != 1 || report.GoModules != 1 || report.SourceSubtrees != 0 {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestValidateRejectsSemanticDrift(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(t *testing.T, options *Options, lock map[string]any)
+		want   string
+	}{
+		{
+			name: "source commit mismatch",
+			mutate: func(_ *testing.T, options *Options, _ map[string]any) {
+				options.SourceCommit = strings.Repeat("b", 40)
+			},
+			want: "source commit",
+		},
+		{
+			name: "duplicate feature",
+			mutate: func(_ *testing.T, _ *Options, lock map[string]any) {
+				features := lock["features"].([]any)
+				lock["features"] = append(features, features[0])
+			},
+			want: "duplicate feature",
+		},
+		{
+			name: "unknown feature",
+			mutate: func(_ *testing.T, _ *Options, lock map[string]any) {
+				feature := lock["features"].([]any)[0].(map[string]any)
+				feature["id"] = "ghost-feature"
+			},
+			want: "not declared",
+		},
+		{
+			name: "undeclared package",
+			mutate: func(_ *testing.T, _ *Options, lock map[string]any) {
+				feature := lock["features"].([]any)[0].(map[string]any)
+				delivery := feature["deliveries"].([]any)[0].(map[string]any)
+				delivery["source"] = "github.com/timmyagentic/awesome-agent-app-features/not-real"
+			},
+			want: "not declared",
+		},
+		{
+			name: "local module replace",
+			mutate: func(_ *testing.T, options *Options, _ map[string]any) {
+				options.ResolveModule = func(context.Context, string, string) (ModuleInfo, error) {
+					return ModuleInfo{Version: testVersion, Directory: options.SourceRoot, Replaced: true}, nil
+				}
+			},
+			want: "local replace",
+		},
+		{
+			name: "module version mismatch",
+			mutate: func(_ *testing.T, options *Options, _ map[string]any) {
+				options.ResolveModule = func(context.Context, string, string) (ModuleInfo, error) {
+					return ModuleInfo{Version: "v0.0.0-20260830000000-bbbbbbbbbbbb", Directory: options.SourceRoot}, nil
+				}
+			},
+			want: "module version",
+		},
+		{
+			name: "module content mismatch",
+			mutate: func(t *testing.T, options *Options, _ map[string]any) {
+				moduleRoot := t.TempDir()
+				writeFile(t, filepath.Join(moduleRoot, "go.mod"), "module github.com/timmyagentic/awesome-agent-app-features\n\ngo 1.25.0\n")
+				writeFile(t, filepath.Join(moduleRoot, "feedback", "model.go"), "package feedback\n")
+				options.ResolveModule = func(context.Context, string, string) (ModuleInfo, error) {
+					return ModuleInfo{Version: testVersion, Directory: moduleRoot}, nil
+				}
+			},
+			want: "module content",
+		},
+		{
+			name: "missing host file",
+			mutate: func(_ *testing.T, _ *Options, lock map[string]any) {
+				feature := lock["features"].([]any)[0].(map[string]any)
+				feature["files"] = append(feature["files"].([]any), "missing.go")
+			},
+			want: "host file",
+		},
+		{
+			name: "missing source subtree target",
+			mutate: func(_ *testing.T, options *Options, _ map[string]any) {
+				if err := os.RemoveAll(filepath.Join(options.HostRoot, "infrastructure", "feedback-relay")); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: "source-subtree target",
+		},
+		{
+			name: "future verification time",
+			mutate: func(_ *testing.T, _ *Options, lock map[string]any) {
+				feature := lock["features"].([]any)[0].(map[string]any)
+				feature["verified_at"] = "2026-08-31T00:00:00Z"
+			},
+			want: "future",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			options := validOptions(t)
+			lock := readLockMap(t, options.LockPath)
+			test.mutate(t, &options, lock)
+			writeJSON(t, options.LockPath, lock)
+			_, err := Validate(context.Background(), options)
+			if err == nil || !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(test.want)) {
+				t.Fatalf("error = %v, want substring %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateRejectsOversizedLockBeforeDecoding(t *testing.T) {
+	options := validOptions(t)
+	writeFile(t, options.LockPath, strings.Repeat(" ", maxContractJSONBytes+1))
+	_, err := Validate(context.Background(), options)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("error = %v, want bounded lock rejection", err)
+	}
+}
+
+func validOptions(t *testing.T) Options {
+	t.Helper()
+	sourceRoot := repositoryRoot(t)
+	hostRoot := t.TempDir()
+	writeFile(t, filepath.Join(hostRoot, "go.mod"), "module example.com/host\n\ngo 1.25.0\n")
+	writeFile(t, filepath.Join(hostRoot, "go.sum"), "module checksum\n")
+	writeFile(t, filepath.Join(hostRoot, "internal", "feedback", "flow.go"), "package feedback\n")
+	writeFile(t, filepath.Join(hostRoot, "infrastructure", "feedback-relay", "package.json"), "{}\n")
+
+	lockPath := filepath.Join(hostRoot, "agent-app-features.lock.json")
+	writeJSON(t, lockPath, map[string]any{
+		"schema": 1,
+		"source": map[string]any{
+			"repository": "timmyagentic/awesome-agent-app-features",
+			"commit":     testCommit,
+		},
+		"features": []any{
+			map[string]any{
+				"id":       "feedback",
+				"contract": "v1",
+				"deliveries": []any{
+					map[string]any{
+						"mode":    "go-module",
+						"source":  "github.com/timmyagentic/awesome-agent-app-features/feedback",
+						"target":  "go.mod",
+						"version": testVersion,
+					},
+					map[string]any{
+						"mode":   "source-subtree",
+						"source": "relay/cloudflare",
+						"target": "infrastructure/feedback-relay",
+					},
+				},
+				"files": []any{
+					"go.mod",
+					"go.sum",
+					"internal/feedback/flow.go",
+					"infrastructure/feedback-relay/package.json",
+				},
+				"verified_at": "2026-08-30T00:00:00Z",
+				"checks":      []any{"go test ./..."},
+				"unverified":  []any{},
+			},
+		},
+	})
+
+	return Options{
+		LockPath:     lockPath,
+		HostRoot:     hostRoot,
+		SourceRoot:   sourceRoot,
+		SourceCommit: testCommit,
+		Now:          func() time.Time { return time.Date(2026, 8, 30, 1, 0, 0, 0, time.UTC) },
+		ResolveModule: func(context.Context, string, string) (ModuleInfo, error) {
+			return ModuleInfo{Version: testVersion, Directory: sourceRoot}, nil
+		},
+	}
+}
+
+func repositoryRoot(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve test source")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeJSON(t *testing.T, path string, value any) {
+	t.Helper()
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, path, string(data)+"\n")
+}
+
+func readLockMap(t *testing.T, path string) map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value map[string]any
+	if err := json.Unmarshal(data, &value); err != nil {
+		t.Fatal(err)
+	}
+	return value
+}

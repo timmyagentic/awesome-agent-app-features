@@ -25,6 +25,7 @@ func TestSourceValidatesLatestStableRelease(t *testing.T) {
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(writer, `{
           "tag_name":"v1.2.3",
+          "body":"English notes\n\n## 中文\n\n中文说明",
           "html_url":%q,
           "draft":false,
           "prerelease":false,
@@ -46,7 +47,8 @@ func TestSourceValidatesLatestStableRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LatestStable: %v", err)
 	}
-	if release.Tag != "v1.2.3" || len(release.Assets) != 1 || release.Assets[0].Name != "checksums.txt" {
+	if release.Tag != "v1.2.3" || release.Notes != "English notes\n\n## 中文\n\n中文说明" ||
+		len(release.Assets) != 1 || release.Assets[0].Name != "checksums.txt" {
 		t.Fatalf("release = %+v", release)
 	}
 }

@@ -10,13 +10,27 @@ GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/up
 
 The demo mutates only a temporary fake executable. Read [the full transaction contract](../../docs/updater-contract.md) before host implementation.
 
+After deterministic checks pass, a host may exercise an actual public GitHub Release without touching an installed product:
+
+```bash
+GOWORK=off go run \
+  github.com/timmyagentic/awesome-agent-app-features/examples/updater-live@<resolved-commit-sha> \
+  -repo owner/repository \
+  -product example-agent \
+  -current v1.0.0 \
+  -archive-binary release-qualified \
+  -apply-temporary
+```
+
+Use `plain` when the archive entry is the unqualified product name. This opt-in probe performs real public network/download work but mutates only a temporary fake executable.
+
 Interactive entry points must use:
 
 ```text
 Prepare -> render exact Plan -> authorize -> Apply(the same Plan)
 ```
 
-`Prepare` validates one exact stable release, selects the archive/checksum and archive entry, downloads the bounded checksum manifest, and pins SHA-256. `Apply` never queries latest. A new successful `Prepare` supersedes older plans; a failed Apply can retry the same plan, while a successful one is consumed.
+`Prepare` validates one exact stable release, retains its presentation-neutral `Release.Notes`, selects the archive/checksum and archive entry, downloads the bounded checksum manifest, and pins SHA-256. `Apply` never queries latest. A host may localize, truncate, or ignore Notes from `Plan.Release()` but must not refetch latest for presentation. A new successful `Prepare` supersedes older plans; a failed Apply can retry the same plan, while a successful one is consumed.
 
 `updater/github.Source` is an infrastructure adapter, not part of the core. A custom source must return internally consistent release metadata and download only the supplied exact `Asset`.
 
@@ -26,4 +40,4 @@ All host entry points share one updater configuration. They may render events di
 
 The standalone adapter supports macOS/Linux regular executable paths. npm, Homebrew, symlink installations, and Windows require explicit install-kind adapters with honest verification and recovery behavior.
 
-After integration, record the exact source, module version, host-relative files, successful checks, and `UNVERIFIED` boundaries in the target's visible `agent-app-features.lock.json`. Future agents combine that locator with current references, Git history, and host tests; the lock does not own shared files or recovery material.
+After integration, record the exact source, module version, host-relative files, successful checks, and `UNVERIFIED` boundaries in the target's visible `agent-app-features.lock.json`, then run the same-commit `cmd/feature-lock` validator. Future agents combine that validated locator with current references, Git history, and host tests; the lock does not own shared files or recovery material.

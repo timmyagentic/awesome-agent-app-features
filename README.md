@@ -8,7 +8,7 @@
 
 | 能力 | 本仓库提供 | 宿主提供 |
 | --- | --- | --- |
-| Agent 友好接入 | 远程入口、Feature manifests、精确 SHA delivery、最小 lock、契约测试 | Agent 按现有架构编写薄适配和宿主测试 |
+| Agent 友好接入 | 远程入口、Feature manifests、精确 SHA delivery、最小 lock、无状态语义校验、提取态契约测试 | Agent 按现有架构编写薄适配和宿主测试 |
 | Feedback | 脱敏 Draft、显式 Approved、HTTPS client、单租户 Relay | 触发、预览 UI、确认动作和失败体验 |
 | Updater | exact plan、stable-only、checksum、双版本验证、锁、备份、回滚 | 更新提示、授权、安装类型、重启和确认 |
 
@@ -32,7 +32,8 @@ https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/f
 不要要求我 clone 仓库。先把 main 解析为完整 commit SHA，并确认该 SHA 的
 CI 成功；所有资源固定到同一 SHA。先盘点宿主已有实现，映射 feature 的责任、
 invariants 和验证，再实现最薄适配。无法执行的真实客户端、凭证、部署或重启验证
-标为 UNVERIFIED。最后写入不含敏感信息的 agent-app-features.lock.json。
+标为 UNVERIFIED。最后写入不含敏感信息的 agent-app-features.lock.json，并运行
+同 SHA 的 feature-lock validator 核对实际依赖、delivery 与宿主文件。
 ```
 
 项目尚未发布版本。评估当前代码时使用 Go 1.25 或更高版本，并固定到已经审查的 commit SHA：
@@ -44,6 +45,8 @@ go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@
 ```
 
 Go 使用 module cache，不会创建本仓库的工作副本。Updater demo 只替换临时目录中的假二进制，不访问 Release，也不触碰已安装产品。
+
+完成确定性门禁后，可按 [Updater Feature contract](features/updater/README.md) 使用 `examples/updater-live` 对真实公开 GitHub Release 执行只触碰临时假二进制的 opt-in E2E。
 
 公开 Go 包只有：
 
@@ -110,7 +113,7 @@ if !userExplicitlyConfirmed() {
 _, err = service.Apply(ctx, plan)
 ```
 
-`Prepare` 固定 release、archive、archive 内 binary name 和 checksum；`Apply` 只执行这个 plan，不再查询 latest。Standalone 原地替换只支持 macOS/Linux；npm、Homebrew、Windows 和其他安装类型由宿主 adapter 负责。事务细节见 [Updater contract](docs/updater-contract.md)。
+`Prepare` 固定 release、只读 Release Notes、archive、archive 内 binary name 和 checksum；`Apply` 只执行这个 plan，不再查询 latest。宿主可以本地化、截断或忽略同一 Plan 中的 Notes，但不能为了展示说明重新查询浮动 latest。Standalone 原地替换只支持 macOS/Linux；npm、Homebrew、Windows 和其他安装类型由宿主 adapter 负责。事务细节见 [Updater contract](docs/updater-contract.md)。
 
 ## 接入记录
 
@@ -123,19 +126,33 @@ Agent 完成接入后，在目标项目根目录维护一个可见的 `agent-app
 
 它不保存配置值、凭证、payload、日志、用户 ID、绝对路径、运行状态或删除历史。升级时更新它；检查或移除时结合当前代码和 Git 历史判断。Lock 是维护线索，不代替宿主测试，也不授权部署。
 
+JSON Schema 负责无敏感字段和路径形状；同 SHA 的无状态 validator 进一步核对 Feature/contract、manifest 声明、Go module 版本与内容、source-subtree 目标和实际宿主文件：
+
+```bash
+GOWORK=off go run \
+  github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock@<resolved-commit-sha> \
+  validate \
+  --source <temporary-exact-sha-source-root> \
+  --source-commit <resolved-commit-sha> \
+  --host <target-project-root>
+```
+
+`--source` 是从同 SHA archive 解出的临时目录，不是用户维护的 clone；验证后删除。
+
 ## 边界与门禁
 
 - 飞书卡片等产品 UI 只是 `Report`、`Plan` 或 `Event` 的宿主 renderer，不进入本仓库。
 - Feedback 永不后台提交；Relay 再次验证 schema、approval 和 byte limits。
 - Updater 只接受 stable tag，checksum 在确认前固定，staged/installed version 不匹配就拒绝或回滚。
 - Core 只依赖 Go 标准库；基础设施 adapter 依赖 core，core 不反向依赖 adapter。
-- Source subtree 只提取 manifest 声明的目录，并拒绝 traversal 和 symlink。
+- Source subtree 只提取 manifest 声明的目录，并拒绝 traversal 和 symlink；声明的 Relay subtree 必须在离开 foundation 根目录后独立完成 install/test/typecheck/types-check/dry-run。
 
 ```text
 api/v1.txt                         公开 API 快照
 compat/v1                          外部消费者契约
 features/index.json                远程 Agent 单一入口
 features/integration-lock.schema.json  最小宿主 lock
+cmd/feature-lock                    无状态宿主 lock 语义校验
 features/*/feature.json            Feature manifests
 feedback/                          Feedback core
 updater/                           Updater core

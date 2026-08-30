@@ -1,7 +1,7 @@
 import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
-import { _test } from "../src/index.js";
+import { _test } from "../src/relay.js";
 
 describe("Feedback relay in the Workers runtime", () => {
   it("runs the production entrypoint and returns hardened JSON", async () => {

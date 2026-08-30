@@ -9,11 +9,11 @@
 | Floating or local dependency bypasses review | Delivery forbids floating `main`, local `replace`, submodules, and a user-managed foundation checkout; Go records an immutable pseudo-version | A target maintainer can later change its dependency intentionally |
 | Source archive writes outside the intended host path | Only declared subtrees may be extracted in a temporary directory after entry inspection; traversal and symlinks are rejected | The copied subtree becomes host-owned and needs normal review thereafter |
 | Green CI is mistaken for publisher identity | Agents require successful CI as a quality gate | GitHub account/repository compromise remains in the trust root; higher-assurance users should require signed commits or independently rooted provenance |
-| A future Agent cannot locate the integration | A visible minimal lock records exact source, deliveries, relative files, checks, and uncertainty | Lock evidence becomes stale; compare it with current code, dependencies, Git history, and tests |
+| A future Agent cannot locate the integration | A visible minimal lock records exact source, deliveries, relative files, checks, and uncertainty; a same-commit stateless validator checks the declared source, module content, subtree targets, and host files | Lock evidence and successful checks become stale; compare them with current code, Git history, and fresh host tests |
 | Lock becomes a secret or telemetry dump | Its strict schema has no configuration values, payloads, logs, identifiers, credentials, or absolute paths | Free-text check names and uncertainty still require Agent review |
 | Removal deletes shared host code | The Agent inspects current references and Git history before deleting ordinary host files | Ownership remains a host-review decision; the lock does not claim authority |
 
-The discovery URL on `main` is not an immutable dependency and must never be copied into a target lockfile as one. A no-clone workflow removes user-managed checkout drift; it does not remove the need to review the resolved source and target-project changes.
+The discovery URL on `main` is not an immutable dependency and must never be copied into a target lockfile as one. A no-clone workflow removes user-managed checkout drift; it does not remove the need to review the resolved source and target-project changes. The lock validator consumes a temporary same-SHA source extraction and stores no lifecycle state.
 
 `agent-app-features.lock.json` is maintenance metadata, not runtime state or completion proof. Historical success is never proof of current behavior.
 
@@ -36,6 +36,7 @@ Use a fine-grained GitHub token restricted to exactly one repository with Issues
 | Threat | v1 control | Residual risk |
 | --- | --- | --- |
 | Confirmation target drifts | `Prepare` deep-copies release metadata, resolves exact names, downloads checksum, and returns opaque `Plan`; `Apply` never resolves latest | A source can remove the asset; Apply then fails rather than switching |
+| Release notes inject host behavior | `Release.Notes` is read-only metadata pinned in the Plan; hosts render it as untrusted text and never execute it or derive authorization from it | A trusted publisher controls the displayed release copy by design |
 | Beta/RC reaches stable users | Exact SemVer stable tag without leading zero plus draft/prerelease rejection | A trusted publisher can still publish bad code as stable |
 | Archive/checksum replaced together | SHA-256 is pinned during `Prepare`, before confirmation | A compromised publisher can serve malicious content before Prepare; checksum is not identity |
 | Download corruption or archive bomb | Declared and streaming bounds, SHA-256 before extraction, one bounded regular-file entry | Host-chosen limits must fit its environment |

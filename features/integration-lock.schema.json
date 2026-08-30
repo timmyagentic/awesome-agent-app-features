@@ -13,12 +13,14 @@
       "required": ["repository", "commit"],
       "properties": {
         "repository": { "const": "timmyagentic/awesome-agent-app-features" },
-        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+        "commit": { "type": "string", "pattern": "^(?!0{40}$)[0-9a-f]{40}$" }
       }
     },
     "features": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -29,6 +31,7 @@
           "deliveries": {
             "type": "array",
             "minItems": 1,
+            "uniqueItems": true,
             "items": {
               "oneOf": [
                 {
@@ -64,6 +67,7 @@
           },
           "files": {
             "type": "array",
+            "minItems": 1,
             "uniqueItems": true,
             "items": { "$ref": "#/$defs/relative_path" }
           },

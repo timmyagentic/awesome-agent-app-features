@@ -69,6 +69,8 @@ Go stores the module in its cache and records an immutable pseudo-version in `go
 
 Download the same-SHA GitHub archive into a temporary directory and extract only the manifest-declared path, such as `relay/cloudflare`. Inspect archive entries first and reject traversal, symlinks, and files outside the declared path. Remove temporary material afterwards. The copied configuration, credentials, deployment, and maintenance become host-owned. Without production authorization, run tests and dry-run only.
 
+A declared `source-subtree` must remain self-contained after it leaves the foundation root. For the Relay, run `npm ci --ignore-scripts`, `npm test`, `npm run check`, `npm run typecheck`, `npm run types:check`, `npm run validate:worker`, and `npm audit --audit-level=high` in the final host target. Schemas, fixtures, or `node_modules` that happen to exist in a foundation checkout are not delivery proof.
+
 ## 4. Run proof
 
 Before host changes, the agent may run same-SHA zero-configuration examples:
@@ -82,7 +84,19 @@ The Feedback example renders a preview only. The Updater example mutates only a 
 
 ## 5. Write the minimal lock
 
-After integration, write a visible `agent-app-features.lock.json` at the target root and validate it with the same-SHA [integration-lock.schema.json](../features/integration-lock.schema.json).
+After integration, write a visible `agent-app-features.lock.json` at the target root. Validate its structure with the same-SHA [integration-lock.schema.json](../features/integration-lock.schema.json), then run the same-commit stateless semantic validator:
+
+```bash
+GOWORK=off go run \
+  "github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock@${resolved_commit}" \
+  validate \
+  --source "${temporary_exact_source_root}" \
+  --source-commit "${resolved_commit}" \
+  --host "${target_project_root}" \
+  --lock "${target_project_root}/agent-app-features.lock.json"
+```
+
+`temporary_exact_source_root` is the temporary full extraction of the same-SHA archive. The validator stores no lifecycle state, does not run host checks, and does not replace the remote CI gate. It rejects mixed sources, duplicate or unknown Features, undeclared deliveries, mismatched Go module version or content, missing subtree targets, and nonexistent claimed host files.
 
 The lock records only:
 
@@ -115,10 +129,10 @@ Every entry point shares one Updater configuration. Interactive paths use `Prepa
 
 ## Maintenance
 
-- Inspect: compare lock, current dependency, host wiring, and manifest invariants; report drift read-only.
+- Inspect: keep the lock source fixed, reacquire that exact source, run the validator, then compare host wiring and manifest invariants read-only.
 - Validate: keep the lock source fixed and rerun applicable checks; historical success is not current proof.
 - Refine: close host UX, fallback, or test gaps at the same source.
-- Upgrade: resolve a new CI-successful commit, compare contracts, move every delivery together, update the lock, and forbid mixed sources.
+- Upgrade: resolve a new CI-successful commit, compare API, manifests, and invariants, move every delivery together, update the lock, and validate against the new source; never mix sources.
 - Remove: inspect current references and Git history, delete only known-unshared integration code, then remove the Feature from the lock; delete an empty lock.
 
 These are ordinary agent operations on a codebase, not a foundation-owned action state machine. Git owns history; host tests own current truth.
@@ -132,5 +146,6 @@ Report completion only when:
 - applicable remote checks, focused tests, and complete target verification passed;
 - unavailable client, credential, deployment, paid, restart, or production checks are `UNVERIFIED`;
 - `agent-app-features.lock.json` passes the exact-source schema and matches actual delivery and host files.
+- the same-SHA stateless validator passes, and every source subtree independently passes its gates in the copied host target.
 
 Foundation-only tests, temporary output, or a historical lock never replace current host verification.

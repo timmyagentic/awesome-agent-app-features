@@ -8,6 +8,7 @@ import (
 	pathpkg "path"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +26,7 @@ type deliveryItem struct {
 	Packages       []string `json:"packages,omitempty"`
 	Path           string   `json:"path,omitempty"`
 	HostOwnedFiles []string `json:"host_owned_files,omitempty"`
+	Verify         string   `json:"verify,omitempty"`
 }
 
 type remoteExample struct {
@@ -49,8 +51,8 @@ func TestFeatureManifestPathsPointToCode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(paths) != 2 {
-		t.Fatalf("feature manifest count = %d, want 2", len(paths))
+	if len(paths) == 0 {
+		t.Fatal("repository has no Feature manifests")
 	}
 
 	seen := make(map[string]struct{}, len(paths))
@@ -61,7 +63,9 @@ func TestFeatureManifestPathsPointToCode(t *testing.T) {
 			t.Errorf("duplicate feature id %q", item.ID)
 		}
 		seen[item.ID] = struct{}{}
-		assertRepositoryPath(t, root, path, strings.TrimPrefix(item.Package, "./"), true)
+		if item.Package != "" {
+			assertRepositoryPath(t, root, path, strings.TrimPrefix(item.Package, "./"), true)
+		}
 
 		for _, delivery := range item.Delivery {
 			switch delivery.Mode {
@@ -83,6 +87,11 @@ func TestFeatureManifestPathsPointToCode(t *testing.T) {
 					continue
 				}
 				localPath := assertRepositoryPath(t, root, path, delivery.Path, true)
+				if delivery.Verify == "" {
+					t.Errorf("%s source subtree has no verification entrypoint", path)
+				} else {
+					assertRepositoryPath(t, root, path, filepath.ToSlash(filepath.Join(delivery.Path, delivery.Verify)), false)
+				}
 				if err := filepath.WalkDir(localPath, func(entryPath string, entry fs.DirEntry, err error) error {
 					if err != nil {
 						return err
@@ -141,7 +150,7 @@ func assertRepositoryPath(t *testing.T, root, manifestPath, relative string, wan
 
 func TestCorePackagesRemainHeadlessAndHostAgnostic(t *testing.T) {
 	root := repositoryRoot(t)
-	for _, packageName := range []string{"feedback", "updater"} {
+	for _, packageName := range corePackageDirectories(t, root) {
 		directory := filepath.Join(root, packageName)
 		entries, err := os.ReadDir(directory)
 		if err != nil {
@@ -178,6 +187,54 @@ func TestCorePackagesRemainHeadlessAndHostAgnostic(t *testing.T) {
 			}
 		}
 	}
+}
+
+func corePackageDirectories(t *testing.T, root string) []string {
+	t.Helper()
+	var result []string
+	for _, item := range allManifests(t, root) {
+		if item.Package != "" {
+			result = append(result, strings.TrimPrefix(item.Package, "./"))
+		}
+	}
+	sort.Strings(result)
+	return result
+}
+
+func publicPackageDirectories(t *testing.T, root string) []string {
+	t.Helper()
+	seen := make(map[string]struct{})
+	for _, item := range allManifests(t, root) {
+		for _, delivery := range item.Delivery {
+			if delivery.Mode != "go-module" {
+				continue
+			}
+			for _, packagePath := range delivery.Packages {
+				seen[strings.TrimPrefix(packagePath, modulePath+"/")] = struct{}{}
+			}
+		}
+	}
+	result := make([]string, 0, len(seen))
+	for directory := range seen {
+		result = append(result, directory)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func allManifests(t *testing.T, root string) []manifest {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(root, "features", "*", "feature.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := make([]manifest, 0, len(paths))
+	for _, path := range paths {
+		var item manifest
+		readJSON(t, path, &item)
+		result = append(result, item)
+	}
+	return result
 }
 
 func TestRepositoryDoesNotMasqueradeAsSkillCollection(t *testing.T) {

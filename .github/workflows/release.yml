@@ -51,10 +51,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
           version=${RELEASE_TAG#v}
           grep -Eq "^## \\[$version\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md
-          jq -e --arg tag "$RELEASE_TAG" '.release_status == "released" and .since == $tag' features/index.json >/dev/null
-          for manifest in features/*/feature.json; do
-            jq -e --arg tag "$RELEASE_TAG" '.release_status == "released" and .since == $tag' "$manifest" >/dev/null
-          done
+          go run ./cmd/feature-author release-check --root . --tag "$RELEASE_TAG"
       - name: Complete verification
         run: |
           make verify

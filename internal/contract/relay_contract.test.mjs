@@ -22,10 +22,58 @@ function validator(schema) {
 
 test("feature manifests satisfy the machine-readable schema", async () => {
   const validate = validator(await readJSON("features/feature.schema.json"));
-  for (const name of ["feedback", "updater"]) {
-    const manifest = await readJSON(`features/${name}/feature.json`);
-    assert.equal(validate(manifest), true, `${name}: ${JSON.stringify(validate.errors)}`);
+  const entry = await readJSON("features/index.json");
+  for (const feature of entry.features) {
+    const manifest = await readJSON(feature.manifest);
+    assert.equal(validate(manifest), true, `${feature.id}: ${JSON.stringify(validate.errors)}`);
   }
+});
+
+test("source-subtree-only Features do not need a synthetic Go package or example", async () => {
+  const validate = validator(await readJSON("features/feature.schema.json"));
+  const manifest = {
+    $schema: "../feature.schema.json",
+    schema: 1,
+    id: "diagnostics-export",
+    name: "Diagnostics export",
+    maturity: "mvp",
+    contract: "v1",
+    release_status: "unreleased",
+    since: null,
+    runtime: ["javascript"],
+    integration_model: "agent-assisted-code-change",
+    delivery: [{
+      mode: "source-subtree",
+      pin: "resolved-commit",
+      path: "features/diagnostics-export/source",
+      destination: "host-infrastructure",
+      host_owned_files: [],
+      verify: "verify.sh",
+    }],
+    remote_examples: [],
+    foundation: {
+      core: ["Provider-neutral diagnostic values."],
+      adapters: [{path: "./features/diagnostics-export/source", role: "Reference source adapter."}],
+      host: ["Choose and render product diagnostics."],
+      excludes: ["Product UI and credentials."],
+    },
+    prerequisites: ["The host can render the diagnostic values."],
+    invariants: ["No credential values enter the exported diagnostic shape."],
+    integration_steps: ["Extract and verify the declared source subtree."],
+    verification: {
+      remote: ["Extract the same-SHA source subtree."],
+      foundation: ["Verify the source subtree independently."],
+      host: ["Run host diagnostics tests."],
+    },
+  };
+  assert.equal(validate(manifest), true, JSON.stringify(validate.errors));
+});
+
+test("Go-delivered Features require a zero-network executable example", async () => {
+  const validate = validator(await readJSON("features/feature.schema.json"));
+  const manifest = await readJSON("features/feedback/feature.json");
+  manifest.remote_examples = [];
+  assert.equal(validate(manifest), false, "Go Feature without a remote example was accepted");
 });
 
 test("remote entry and minimal host lock satisfy their schemas", async () => {

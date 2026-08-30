@@ -1,8 +1,10 @@
 # Awesome Agent App Features
 
-[English](README.en.md) · [Agent 接入指南](docs/agent-integration.md) · [兼容策略](COMPATIBILITY.md) · [安全模型](docs/security.md)
+[English](README.en.md) · [Agent 接入指南](docs/agent-integration.md) · [贡献 Feature](docs/adding-a-feature.md) · [兼容策略](COMPATIBILITY.md) · [安全模型](docs/security.md)
 
 给 Agent 应用复用的无界面 Feature 基座。使用者留在自己的项目中，让 coding agent 从远程契约接入底层能力；卡片、命令、权限、本地化、安装类型和业务流程仍由宿主实现。
+
+贡献新的 Feature 请从 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [作者指南](docs/adding-a-feature.md) 开始；`feature-author` 支持 Go core 与纯 source-subtree 骨架，并动态验证整个 catalog。
 
 这不是 awesome 链接清单、Codex Skills 集合、UI 框架或托管 SaaS。首个公开预览版本 `v0.1.0` 包含三项能力；module 在 `v1.0.0` 前仍明确处于 pre-1.0 阶段：
 

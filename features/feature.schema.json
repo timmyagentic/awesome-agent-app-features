@@ -13,7 +13,6 @@
     "release_status",
     "since",
     "runtime",
-    "package",
     "integration_model",
     "delivery",
     "remote_examples",
@@ -43,7 +42,10 @@
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 }
     },
-    "package": { "type": "string", "minLength": 1 },
+    "package": {
+      "type": "string",
+      "pattern": "^\\./[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)*$"
+    },
     "integration_model": { "const": "agent-assisted-code-change" },
     "delivery": {
       "type": "array",
@@ -73,7 +75,7 @@
           {
             "type": "object",
             "additionalProperties": false,
-            "required": ["mode", "pin", "path", "destination", "host_owned_files"],
+            "required": ["mode", "pin", "path", "destination", "host_owned_files", "verify"],
             "properties": {
               "mode": { "const": "source-subtree" },
               "pin": { "const": "resolved-commit" },
@@ -90,6 +92,11 @@
                   "maxLength": 512,
                   "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
                 }
+              },
+              "verify": {
+                "type": "string",
+                "maxLength": 512,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
               }
             }
           }
@@ -98,7 +105,6 @@
     },
     "remote_examples": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -128,13 +134,16 @@
         },
         "adapters": {
           "type": "array",
-          "minItems": 1,
           "items": {
             "type": "object",
             "additionalProperties": false,
             "required": ["path", "role"],
             "properties": {
-              "path": { "type": "string", "pattern": "^\\./", "minLength": 3 },
+              "path": {
+                "type": "string",
+                "maxLength": 514,
+                "pattern": "^\\./(?!\\.\\.?($|/))(?!.*\\/\\.\\.?($|/))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+              },
               "role": { "type": "string", "minLength": 1 }
             }
           }
@@ -198,6 +207,44 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "delivery": {
+            "type": "array",
+            "contains": {
+              "type": "object",
+              "required": ["mode"],
+              "properties": { "mode": { "const": "go-module" } }
+            }
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "package": {},
+          "remote_examples": {
+            "type": "array",
+            "minItems": 1,
+            "contains": {
+              "type": "object",
+              "required": ["mode", "network"],
+              "properties": {
+                "mode": { "const": "go-run" },
+                "network": { "const": "none" }
+              }
+            }
+          }
+        },
+        "required": ["package"]
+      },
+      "else": {
+        "type": "object",
+        "properties": { "package": {} },
+        "not": { "required": ["package"] }
+      }
+    },
     {
       "if": { "properties": { "release_status": { "const": "unreleased" } } },
       "then": { "properties": { "since": { "type": "null" } } }

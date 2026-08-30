@@ -1,6 +1,6 @@
-.PHONY: verify go-verify relay-verify source-subtree-verify script-verify fuzz
+.PHONY: verify go-verify relay-verify source-subtree-verify author-verify script-verify new-feature fuzz
 
-verify: go-verify relay-verify source-subtree-verify script-verify
+verify: go-verify relay-verify source-subtree-verify author-verify script-verify
 
 go-verify:
 	test -z "$$(gofmt -l .)"
@@ -22,9 +22,19 @@ relay-verify:
 source-subtree-verify:
 	sh scripts/verify-relay-subtree.sh
 
+author-verify:
+	go run ./cmd/feature-author validate --root .
+
+new-feature:
+	test -n "$(ID)"
+	test -n "$(NAME)"
+	go run ./cmd/feature-author new --root . --id "$(ID)" --name "$(NAME)" --kind "$(or $(KIND),go)" $(if $(RUNTIME),--runtime "$(RUNTIME)",)
+
 script-verify:
 	sh -n scripts/build-source-release.sh
 	sh -n scripts/verify-relay-subtree.sh
+	sh -n scripts/verify-remote-consumer.sh
+	sh -n relay/cloudflare/verify.sh
 
 fuzz:
 	go test ./feedback -run '^$$' -fuzz FuzzBuilderProducesBoundedValidApprovedJSON -fuzztime 10s

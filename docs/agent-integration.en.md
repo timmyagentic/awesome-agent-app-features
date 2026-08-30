@@ -19,6 +19,8 @@ https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/f
 3. Refetch the entry and selected Feature manifest, README, schema, and delivery from that SHA.
 4. Use the same SHA for every resource, dependency, and template; stop on drift.
 
+The entry may list both released and in-development Features. Ordinary integration selects only a manifest with `release_status: released` and a `since` value backed by an existing tag. An `unreleased` Feature is source-review material, not a stable install target.
+
 Reference commands:
 
 ```bash

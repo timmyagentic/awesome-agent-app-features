@@ -88,9 +88,11 @@ type entryFeature struct {
 }
 
 type featureManifest struct {
-	ID       string             `json:"id"`
-	Contract string             `json:"contract"`
-	Delivery []manifestDelivery `json:"delivery"`
+	ID            string             `json:"id"`
+	Contract      string             `json:"contract"`
+	ReleaseStatus string             `json:"release_status"`
+	Since         *string            `json:"since"`
+	Delivery      []manifestDelivery `json:"delivery"`
 }
 
 type manifestDelivery struct {
@@ -99,6 +101,7 @@ type manifestDelivery struct {
 	Packages       []string `json:"packages,omitempty"`
 	Path           string   `json:"path,omitempty"`
 	HostOwnedFiles []string `json:"host_owned_files,omitempty"`
+	Verify         string   `json:"verify,omitempty"`
 }
 
 func Validate(ctx context.Context, options Options) (Report, error) {
@@ -149,7 +152,7 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 		if !exists {
 			return report, fmt.Errorf("feature %q is not declared by the pinned entry", feature.ID)
 		}
-		if feature.Contract != entryFeature.Contract || feature.Contract != entry.Contract {
+		if feature.Contract != entryFeature.Contract {
 			return report, fmt.Errorf("feature %q contract does not match the pinned entry", feature.ID)
 		}
 
@@ -163,6 +166,9 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 		}
 		if manifest.ID != feature.ID || manifest.Contract != feature.Contract {
 			return report, fmt.Errorf("feature %q does not match its pinned manifest", feature.ID)
+		}
+		if manifest.ReleaseStatus != "released" || manifest.Since == nil || strings.TrimSpace(*manifest.Since) == "" {
+			return report, fmt.Errorf("feature %q is unreleased and cannot be recorded as a stable host integration", feature.ID)
 		}
 
 		declaredPackages := make(map[string]string)

@@ -128,7 +128,7 @@ After integration, the agent maintains one visible `agent-app-features.lock.json
 
 It stores no configuration values, credentials, payloads, logs, user IDs, absolute paths, runtime state, or removal history. Update it during upgrades; combine it with current code and Git history when inspecting or removing an integration. The lock is a maintenance clue, not a substitute for host tests or deployment authorization.
 
-JSON Schema owns secret-free structure and path shape. The same-commit stateless validator additionally checks Feature/contract membership, manifest-declared deliveries, Go module version and content, source-subtree targets, and actual host files:
+JSON Schema owns secret-free structure and path shape. The same-commit stateless validator additionally checks Feature/contract membership, manifest-declared deliveries, Go module version and content, source-subtree file provenance, and actual host files. Only manifest-declared `host_owned_files` may differ after copying; every other delivered file must byte-match the pinned source:
 
 ```bash
 GOWORK=off go run \

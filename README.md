@@ -126,7 +126,7 @@ Agent 完成接入后，在目标项目根目录维护一个可见的 `agent-app
 
 它不保存配置值、凭证、payload、日志、用户 ID、绝对路径、运行状态或删除历史。升级时更新它；检查或移除时结合当前代码和 Git 历史判断。Lock 是维护线索，不代替宿主测试，也不授权部署。
 
-JSON Schema 负责无敏感字段和路径形状；同 SHA 的无状态 validator 进一步核对 Feature/contract、manifest 声明、Go module 版本与内容、source-subtree 目标和实际宿主文件：
+JSON Schema 负责无敏感字段和路径形状；同 SHA 的无状态 validator 进一步核对 Feature/contract、manifest 声明、Go module 版本与内容、source-subtree 的逐文件来源和实际宿主文件。只有 manifest 的 `host_owned_files` 可在复制后由宿主修改；其余交付文件必须与固定源码逐字节一致：
 
 ```bash
 GOWORK=off go run \

@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -19,10 +20,11 @@ type adapter struct {
 }
 
 type deliveryItem struct {
-	Mode     string   `json:"mode"`
-	Module   string   `json:"module,omitempty"`
-	Packages []string `json:"packages,omitempty"`
-	Path     string   `json:"path,omitempty"`
+	Mode           string   `json:"mode"`
+	Module         string   `json:"module,omitempty"`
+	Packages       []string `json:"packages,omitempty"`
+	Path           string   `json:"path,omitempty"`
+	HostOwnedFiles []string `json:"host_owned_files,omitempty"`
 }
 
 type remoteExample struct {
@@ -94,6 +96,22 @@ func TestFeatureManifestPathsPointToCode(t *testing.T) {
 					return nil
 				}); err != nil {
 					t.Errorf("%s walk source subtree: %v", path, err)
+				}
+				seenHostOwned := make(map[string]struct{}, len(delivery.HostOwnedFiles))
+				for _, relative := range delivery.HostOwnedFiles {
+					if strings.Contains(relative, "\\") || pathpkg.IsAbs(relative) || pathpkg.Clean(relative) != relative || relative == "." || strings.HasPrefix(relative, "../") {
+						t.Errorf("%s host-owned file is not canonical: %q", path, relative)
+						continue
+					}
+					if _, duplicate := seenHostOwned[relative]; duplicate {
+						t.Errorf("%s duplicates host-owned file %q", path, relative)
+					}
+					seenHostOwned[relative] = struct{}{}
+					file := assertRepositoryPath(t, root, path, filepath.ToSlash(filepath.Join(delivery.Path, relative)), false)
+					info, err := os.Lstat(file)
+					if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+						t.Errorf("%s host-owned file is unavailable or unsafe: %q", path, relative)
+					}
 				}
 			}
 		}

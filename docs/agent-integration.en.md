@@ -69,7 +69,7 @@ Go stores the module in its cache and records an immutable pseudo-version in `go
 
 Download the same-SHA GitHub archive into a temporary directory and extract only the manifest-declared path, such as `relay/cloudflare`. Inspect archive entries first and reject traversal, symlinks, and files outside the declared path. Remove temporary material afterwards. The copied configuration, credentials, deployment, and maintenance become host-owned. Without production authorization, run tests and dry-run only.
 
-A declared `source-subtree` must remain self-contained after it leaves the foundation root. For the Relay, run `npm ci --ignore-scripts`, `npm test`, `npm run check`, `npm run typecheck`, `npm run types:check`, `npm run validate:worker`, and `npm audit --audit-level=high` in the final host target. Schemas, fixtures, or `node_modules` that happen to exist in a foundation checkout are not delivery proof.
+A declared `source-subtree` must remain self-contained after it leaves the foundation root. For the Relay, run `npm ci --ignore-scripts`, `npm test`, `npm run check`, `npm run typecheck`, `npm run types:check`, `npm run validate:worker`, and `npm audit --audit-level=high` in the final host target. Schemas, fixtures, or `node_modules` that happen to exist in a foundation checkout are not delivery proof. The manifest's `host_owned_files` explicitly names configuration and derived files that may change after copying; every other delivered target file must byte-match the same-SHA source subtree. Extra host-created files are not foundation provenance and remain subject to host review and tests.
 
 ## 4. Run proof
 
@@ -96,7 +96,7 @@ GOWORK=off go run \
   --lock "${target_project_root}/agent-app-features.lock.json"
 ```
 
-`temporary_exact_source_root` is the temporary full extraction of the same-SHA archive. The validator stores no lifecycle state, does not run host checks, and does not replace the remote CI gate. It rejects mixed sources, duplicate or unknown Features, undeclared deliveries, mismatched Go module version or content, missing subtree targets, and nonexistent claimed host files.
+`temporary_exact_source_root` is the temporary full extraction of the same-SHA archive. The validator stores no lifecycle state, does not run host checks, and does not replace the remote CI gate. It rejects mixed sources, duplicate or unknown Features, undeclared deliveries, mismatched Go module version or content, mismatched non-configuration subtree content, missing subtree targets, and nonexistent claimed host files.
 
 The lock records only:
 

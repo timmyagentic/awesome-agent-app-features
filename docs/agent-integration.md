@@ -69,7 +69,7 @@ Go 把模块放入 module cache，并在 `go.mod` 中记录 immutable pseudo-ver
 
 在临时目录下载同 SHA 的 GitHub archive，只提取 manifest 声明的目录，例如 `relay/cloudflare`。提取前检查 archive entries，拒绝 traversal、symlink 和声明目录外文件；完成后删除临时材料。复制后的配置、凭证、部署和维护由宿主负责。没有生产授权时只测试和 dry-run。
 
-声明为 `source-subtree` 的目录必须离开 foundation 根目录后仍然自包含。以 Relay 为例，在最终宿主目标目录执行 `npm ci --ignore-scripts`、`npm test`、`npm run check`、`npm run typecheck`、`npm run types:check`、`npm run validate:worker` 和 `npm audit --audit-level=high`；不能用 foundation checkout 里碰巧存在的 schema、fixture 或 `node_modules` 代替交付物证明。
+声明为 `source-subtree` 的目录必须离开 foundation 根目录后仍然自包含。以 Relay 为例，在最终宿主目标目录执行 `npm ci --ignore-scripts`、`npm test`、`npm run check`、`npm run typecheck`、`npm run types:check`、`npm run validate:worker` 和 `npm audit --audit-level=high`；不能用 foundation checkout 里碰巧存在的 schema、fixture 或 `node_modules` 代替交付物证明。Manifest 的 `host_owned_files` 明确列出复制后允许修改的配置与派生文件；除这些例外外，validator 要求目标中的每个交付文件与同 SHA source-subtree 逐字节一致。目标中新增的宿主文件不作为 foundation 来源证明，仍由宿主代码审查和测试负责。
 
 ## 4. 运行证明
 
@@ -96,7 +96,7 @@ GOWORK=off go run \
   --lock "${target_project_root}/agent-app-features.lock.json"
 ```
 
-`temporary_exact_source_root` 是同 SHA archive 的临时完整解压目录。Validator 不保存状态、不执行宿主检查、不联网替代 CI；它拒绝 mixed-source、重复或不存在的 Feature、未声明 delivery、Go module 版本或内容不一致、缺失 subtree 目标和虚假宿主文件。
+`temporary_exact_source_root` 是同 SHA archive 的临时完整解压目录。Validator 不保存状态、不执行宿主检查、不联网替代 CI；它拒绝 mixed-source、重复或不存在的 Feature、未声明 delivery、Go module 版本或内容不一致、subtree 非配置文件来源不一致、缺失 subtree 目标和虚假宿主文件。
 
 Lock 只记录：
 

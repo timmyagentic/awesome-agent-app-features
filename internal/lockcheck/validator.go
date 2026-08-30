@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -93,10 +94,11 @@ type featureManifest struct {
 }
 
 type manifestDelivery struct {
-	Mode     string   `json:"mode"`
-	Module   string   `json:"module,omitempty"`
-	Packages []string `json:"packages,omitempty"`
-	Path     string   `json:"path,omitempty"`
+	Mode           string   `json:"mode"`
+	Module         string   `json:"module,omitempty"`
+	Packages       []string `json:"packages,omitempty"`
+	Path           string   `json:"path,omitempty"`
+	HostOwnedFiles []string `json:"host_owned_files,omitempty"`
 }
 
 func Validate(ctx context.Context, options Options) (Report, error) {
@@ -164,7 +166,7 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 		}
 
 		declaredPackages := make(map[string]string)
-		declaredSubtrees := make(map[string]struct{})
+		declaredSubtrees := make(map[string][]string)
 		for _, delivery := range manifest.Delivery {
 			switch delivery.Mode {
 			case "go-module":
@@ -172,7 +174,7 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 					declaredPackages[packagePath] = delivery.Module
 				}
 			case "source-subtree":
-				declaredSubtrees[delivery.Path] = struct{}{}
+				declaredSubtrees[delivery.Path] = delivery.HostOwnedFiles
 			}
 		}
 
@@ -226,7 +228,8 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 					checkedModuleFiles[contentKey] = struct{}{}
 				}
 			case "source-subtree":
-				if _, declared := declaredSubtrees[delivery.Source]; !declared {
+				hostOwnedFiles, declared := declaredSubtrees[delivery.Source]
+				if !declared {
 					return report, fmt.Errorf("source subtree %q is not declared by feature %q", delivery.Source, feature.ID)
 				}
 				if err := requireDirectory(options.SourceRoot, delivery.Source, "declared source subtree"); err != nil {
@@ -234,6 +237,9 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 				}
 				if err := requireDirectory(options.HostRoot, delivery.Target, "source-subtree target"); err != nil {
 					return report, err
+				}
+				if err := compareSourceSubtreeContent(options.SourceRoot, delivery.Source, options.HostRoot, delivery.Target, hostOwnedFiles); err != nil {
+					return report, fmt.Errorf("source-subtree content mismatch for %q: %w", delivery.Source, err)
 				}
 				report.SourceSubtrees++
 			default:
@@ -359,15 +365,47 @@ func joinedPath(root, relative string) (string, error) {
 }
 
 func requireDirectory(root, relative, label string) error {
-	path, err := joinedPath(root, relative)
+	_, err := checkedPath(root, relative, true)
 	if err != nil {
-		return fmt.Errorf("%s %q: %w", label, relative, err)
-	}
-	info, err := os.Lstat(path)
-	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-		return fmt.Errorf("%s %q is missing or not a non-symlink directory", label, relative)
+		return fmt.Errorf("%s %q is missing or unsafe: %w", label, relative, err)
 	}
 	return nil
+}
+
+func requireRegularFile(root, relative, label string) (string, error) {
+	file, err := checkedPath(root, relative, false)
+	if err != nil {
+		return "", fmt.Errorf("%s %q is missing or unsafe: %w", label, relative, err)
+	}
+	return file, nil
+}
+
+func checkedPath(root, relative string, wantDirectory bool) (string, error) {
+	resolved, err := joinedPath(root, relative)
+	if err != nil {
+		return "", err
+	}
+	current := root
+	parts := strings.Split(filepath.Clean(filepath.FromSlash(relative)), string(filepath.Separator))
+	for index, part := range parts {
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if err != nil {
+			return "", err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("path component %q is a symlink", filepath.ToSlash(strings.Join(parts[:index+1], string(filepath.Separator))))
+		}
+		last := index == len(parts)-1
+		if !last || wantDirectory {
+			if !info.IsDir() {
+				return "", fmt.Errorf("path component %q is not a directory", filepath.ToSlash(strings.Join(parts[:index+1], string(filepath.Separator))))
+			}
+		} else if !info.Mode().IsRegular() {
+			return "", fmt.Errorf("path is not a regular file")
+		}
+	}
+	return resolved, nil
 }
 
 func compareModuleContent(sourceRoot, moduleRoot, relative string) error {
@@ -393,6 +431,75 @@ func compareModuleContent(sourceRoot, moduleRoot, relative string) error {
 		}
 	}
 	return nil
+}
+
+func compareSourceSubtreeContent(sourceRoot, sourceRelative, hostRoot, targetRelative string, hostOwnedFiles []string) error {
+	sourceStart, err := joinedPath(sourceRoot, sourceRelative)
+	if err != nil {
+		return fmt.Errorf("source path: %w", err)
+	}
+	targetStart, err := joinedPath(hostRoot, targetRelative)
+	if err != nil {
+		return fmt.Errorf("target path: %w", err)
+	}
+
+	hostOwned := make(map[string]struct{}, len(hostOwnedFiles))
+	for _, relative := range hostOwnedFiles {
+		if strings.Contains(relative, "\\") || path.IsAbs(relative) || path.Clean(relative) != relative || relative == "." || strings.HasPrefix(relative, "../") {
+			return fmt.Errorf("host-owned file %q is not a canonical relative path", relative)
+		}
+		if _, duplicate := hostOwned[relative]; duplicate {
+			return fmt.Errorf("host-owned file %q is declared more than once", relative)
+		}
+		for _, location := range []struct {
+			label string
+			root  string
+		}{{"source", sourceStart}, {"target", targetStart}} {
+			if _, err := requireRegularFile(location.root, relative, location.label+" host-owned file"); err != nil {
+				return err
+			}
+		}
+		hostOwned[relative] = struct{}{}
+	}
+
+	return filepath.WalkDir(sourceStart, func(sourcePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("source symlink %s is not allowed", sourcePath)
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return fmt.Errorf("source non-regular file %s is not allowed", sourcePath)
+		}
+		relative, err := filepath.Rel(sourceStart, sourcePath)
+		if err != nil {
+			return err
+		}
+		relative = filepath.ToSlash(relative)
+		if _, mutable := hostOwned[relative]; mutable {
+			return nil
+		}
+		targetPath, err := requireRegularFile(targetStart, relative, "target file")
+		if err != nil {
+			return err
+		}
+		sourceDigest, err := fileDigest(sourcePath)
+		if err != nil {
+			return fmt.Errorf("hash source file %q: %w", relative, err)
+		}
+		targetDigest, err := fileDigest(targetPath)
+		if err != nil {
+			return fmt.Errorf("hash target file %q: %w", relative, err)
+		}
+		if sourceDigest != targetDigest {
+			return fmt.Errorf("target file %q differs from the pinned source", relative)
+		}
+		return nil
+	})
 }
 
 func treeHashes(root, relative string) (map[string]string, error) {
@@ -447,10 +554,14 @@ func treeHashes(root, relative string) (map[string]string, error) {
 }
 
 func fileDigest(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
-	digest := sha256.Sum256(data)
-	return hex.EncodeToString(digest[:]), nil
+	defer file.Close()
+	digest := sha256.New()
+	if _, err := io.Copy(digest, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }

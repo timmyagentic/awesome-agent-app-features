@@ -25,6 +25,18 @@ func TestValidateAcceptsExactDeclaredHostIntegration(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsDeclaredHostOwnedSubtreeFiles(t *testing.T) {
+	options := validOptions(t)
+	target := filepath.Join(options.HostRoot, "infrastructure", "feedback-relay")
+	writeFile(t, filepath.Join(target, "wrangler.jsonc"), "{\n  \"name\": \"host-relay\"\n}\n")
+	writeFile(t, filepath.Join(target, "worker-configuration.d.ts"), "// generated for the host\n")
+	writeFile(t, filepath.Join(target, ".dev.vars"), "HOST_ONLY_VALUE=placeholder\n")
+
+	if _, err := Validate(context.Background(), options); err != nil {
+		t.Fatalf("Validate host-owned subtree files: %v", err)
+	}
+}
+
 func TestValidateResolvesRelativeLockInsideHostRoot(t *testing.T) {
 	options := validOptions(t)
 	options.LockPath = "agent-app-features.lock.json"
@@ -150,6 +162,26 @@ func TestValidateRejectsSemanticDrift(t *testing.T) {
 			want: "source-subtree target",
 		},
 		{
+			name: "source subtree content mismatch",
+			mutate: func(t *testing.T, options *Options, _ map[string]any) {
+				writeFile(t, filepath.Join(options.HostRoot, "infrastructure", "feedback-relay", "src", "relay.js"), "export const mixedSource = true;\n")
+			},
+			want: "source-subtree content mismatch",
+		},
+		{
+			name: "source subtree symlinked parent",
+			mutate: func(t *testing.T, options *Options, _ map[string]any) {
+				target := filepath.Join(options.HostRoot, "infrastructure", "feedback-relay", "src")
+				if err := os.RemoveAll(target); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join(options.SourceRoot, "relay", "cloudflare", "src"), target); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: "source-subtree content mismatch",
+		},
+		{
 			name: "future verification time",
 			mutate: func(_ *testing.T, _ *Options, lock map[string]any) {
 				feature := lock["features"].([]any)[0].(map[string]any)
@@ -184,12 +216,23 @@ func TestValidateRejectsOversizedLockBeforeDecoding(t *testing.T) {
 
 func validOptions(t *testing.T) Options {
 	t.Helper()
-	sourceRoot := repositoryRoot(t)
+	repository := repositoryRoot(t)
+	sourceRoot := t.TempDir()
+	for _, relative := range []string{"go.mod", "features/index.json", "features/feedback/feature.json", "features/updater/feature.json"} {
+		copyFile(t, filepath.Join(repository, relative), filepath.Join(sourceRoot, relative))
+	}
+	copyTree(t, filepath.Join(repository, "feedback"), filepath.Join(sourceRoot, "feedback"))
+	copyTree(t, filepath.Join(repository, "updater"), filepath.Join(sourceRoot, "updater"))
+	copyTree(t, filepath.Join(repository, "relay", "cloudflare"), filepath.Join(sourceRoot, "relay", "cloudflare"))
 	hostRoot := t.TempDir()
 	writeFile(t, filepath.Join(hostRoot, "go.mod"), "module example.com/host\n\ngo 1.25.0\n")
 	writeFile(t, filepath.Join(hostRoot, "go.sum"), "module checksum\n")
 	writeFile(t, filepath.Join(hostRoot, "internal", "feedback", "flow.go"), "package feedback\n")
-	writeFile(t, filepath.Join(hostRoot, "infrastructure", "feedback-relay", "package.json"), "{}\n")
+	copyTree(
+		t,
+		filepath.Join(sourceRoot, "relay", "cloudflare"),
+		filepath.Join(hostRoot, "infrastructure", "feedback-relay"),
+	)
 
 	lockPath := filepath.Join(hostRoot, "agent-app-features.lock.json")
 	writeJSON(t, lockPath, map[string]any{
@@ -237,6 +280,51 @@ func validOptions(t *testing.T) Options {
 		ResolveModule: func(context.Context, string, string) (ModuleInfo, error) {
 			return ModuleInfo{Version: testVersion, Directory: sourceRoot}, nil
 		},
+	}
+}
+
+func copyFile(t *testing.T, source, target string) {
+	t.Helper()
+	data, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, target, string(data))
+}
+
+func copyTree(t *testing.T, source, target string) {
+	t.Helper()
+	if err := filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == source {
+			return os.MkdirAll(target, 0o755)
+		}
+		if entry.IsDir() && (entry.Name() == "node_modules" || entry.Name() == ".wrangler") {
+			return filepath.SkipDir
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		destination := filepath.Join(target, relative)
+		if entry.IsDir() {
+			return os.MkdirAll(destination, 0o755)
+		}
+		if entry.Type()&os.ModeSymlink != 0 || !entry.Type().IsRegular() {
+			t.Fatalf("unsupported source fixture entry: %s", path)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(destination, data, 0o644)
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

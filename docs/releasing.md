@@ -5,7 +5,7 @@ Releases are immutable Go module tags plus reproducible source archives attached
 1. Update `CHANGELOG.md` and verify the intended version follows SemVer. For first publication, change the remote entry and each feature manifest to `release_status: released` and set `since` to that exact first tag; later releases preserve the original `since` value.
 2. Run `make verify` from a clean worktree. This includes independent Relay subtree extraction, generated Worker binding types, and the stateless lock validator contracts.
 3. Confirm `api/v1.txt`, shared protocol fixtures, the remote entry, feature manifests, lock schema/validator, and compatibility policy changed only by deliberate review.
-4. Merge the release commit to `main` with all required checks green.
+4. Merge the release commit to `main` with all required checks green. During a first publication, the release metadata is staged in this reviewed commit; it is not consumer-ready until the matching tag exists. Continue directly to the authorized tag step, do not announce completion in the interval, and treat tag existence as the publication truth.
 5. Stop until version publication is explicitly authorized. Creating or pushing a tag is not part of ordinary stabilization work.
 6. After authorization, create an annotated tag on the exact current `main` commit and push it: `git tag -a vX.Y.Z -m "vX.Y.Z"`.
 7. Manually dispatch `Publish release (manual)` with that exact tag and the required `publish <tag>` confirmation. It validates the tag, manifests, and changelog, reruns all gates, builds a deterministic `git archive` with `gzip -n`, attests the archive, publishes its SHA-256, and creates the GitHub Release. Tag pushes alone do not trigger it.

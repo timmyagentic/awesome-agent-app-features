@@ -25,7 +25,8 @@
       "mode": "source-subtree",
       "pin": "resolved-commit",
       "path": "relay/cloudflare",
-      "destination": "host-infrastructure"
+      "destination": "host-infrastructure",
+      "host_owned_files": ["worker-configuration.d.ts", "wrangler.jsonc"]
     }
   ],
   "remote_examples": [

@@ -44,7 +44,7 @@
                       "type": "string",
                       "pattern": "^github\\.com/timmyagentic/awesome-agent-app-features(/[a-z][a-z0-9-]*)+$"
                     },
-                    "target": { "const": "go.mod" },
+                    "target": { "$ref": "#/$defs/go_mod_path" },
                     "version": {
                       "type": "string",
                       "maxLength": 128,
@@ -92,6 +92,12 @@
       "type": "string",
       "maxLength": 512,
       "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "go_mod_path": {
+      "allOf": [
+        { "$ref": "#/$defs/relative_path" },
+        { "type": "string", "pattern": "^(?:[A-Za-z0-9._-]+/)*go\\.mod$" }
+      ]
     }
   }
 }

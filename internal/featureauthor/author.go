@@ -60,6 +60,7 @@ type entryFeature struct {
 type manifestDocument struct {
 	ID             string          `json:"id"`
 	Name           string          `json:"name"`
+	Maturity       string          `json:"maturity"`
 	Contract       string          `json:"contract"`
 	ReleaseStatus  string          `json:"release_status"`
 	Since          *string         `json:"since"`
@@ -151,6 +152,9 @@ func Validate(root string) error {
 		if _, registered := seen[id]; !registered {
 			return fmt.Errorf("manifest for Feature %q is not registered", id)
 		}
+	}
+	if err := validateReadmeCatalogs(root); err != nil {
+		return err
 	}
 	return nil
 }
@@ -417,6 +421,9 @@ func Scaffold(options ScaffoldOptions) error {
 	})
 	raw["features"] = features
 	if err := writeJSON(indexPath, raw); err != nil {
+		return err
+	}
+	if err := SyncReadmes(root); err != nil {
 		return err
 	}
 	return Validate(root)

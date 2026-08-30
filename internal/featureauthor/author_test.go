@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -43,6 +44,31 @@ func TestScaffoldAndValidateThirdSourceSubtreeFeature(t *testing.T) {
 	examples, ok := manifest["remote_examples"].([]any)
 	if !ok || len(examples) != 0 {
 		t.Fatalf("remote_examples = %#v, want an empty array", manifest["remote_examples"])
+	}
+	for _, readme := range []string{"README.md", "README.en.md"} {
+		content, err := os.ReadFile(filepath.Join(root, readme))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(content), "Diagnostics export") || !strings.Contains(string(content), "features/diagnostics-export/source") {
+			t.Errorf("%s was not synchronized from the third Feature manifest", readme)
+		}
+	}
+}
+
+func TestValidateRejectsGeneratedReadmeCatalogDrift(t *testing.T) {
+	root := copyRepository(t)
+	path := filepath.Join(root, "README.md")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content = []byte(strings.Replace(string(content), "User-approved in-product feedback", "Drifted feedback title", 1))
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(root); err == nil || !strings.Contains(err.Error(), "sync-docs") {
+		t.Fatalf("Validate() error = %v, want generated-doc drift remediation", err)
 	}
 }
 
@@ -96,6 +122,9 @@ func TestValidateReleaseAllowsHistoricalAndUnreleasedFeatures(t *testing.T) {
 	manifest["release_status"] = "released"
 	manifest["since"] = "v0.2.0"
 	writeJSONFile(t, manifestPath, manifest)
+	if err := SyncReadmes(root); err != nil {
+		t.Fatal(err)
+	}
 	if err := ValidateRelease(root, "v0.2.0", func(tag, relative string) (TagResolution, error) {
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
 		return TagResolution{Exists: tag == "v0.1.0" || tag == "v0.2.0", AncestorOfRelease: true, File: data}, err

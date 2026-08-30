@@ -7,6 +7,7 @@ Start with [Adding a Feature](docs/adding-a-feature.md). The supported authoring
 ```bash
 go run ./cmd/feature-author new --id example-feature --name "Example Feature" --kind go
 go run ./cmd/feature-author new --id example-adapter --name "Example Adapter" --kind source-subtree --runtime javascript
+go run ./cmd/feature-author sync-docs --root .
 go run ./cmd/feature-author validate --root .
 make verify
 ```
@@ -14,5 +15,7 @@ make verify
 Generated scaffolds are deliberately unreleased. Replace every placeholder responsibility, invariant, integration step, and verification statement with reviewed Feature-specific truth before requesting publication.
 
 Every Go delivery needs a zero-network `go-run` example. Every source-subtree delivery needs an in-subtree `verify` script that proves the copied delivery independently; successful copying alone is not verification.
+
+Discuss a new capability with the [Feature Proposal form](https://github.com/timmyagentic/awesome-agent-app-features/issues/new?template=feature-proposal.yml) before substantial implementation. Use the repository's [Feature PR template](.github/PULL_REQUEST_TEMPLATE/feature.md) so the reusable boundary, host ownership, invariants, real adopter, verification, and `UNVERIFIED` evidence remain reviewable.
 
 Do not add credentials, product identifiers, hosted endpoints, host UI, or a `SKILL.md`. A new delivery mode, wire schema, or compatibility-contract version needs an explicit architecture review rather than a local schema workaround.

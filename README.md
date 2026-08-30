@@ -6,13 +6,18 @@
 
 贡献新的 Feature 请从 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [作者指南](docs/adding-a-feature.md) 开始；`feature-author` 支持 Go core 与纯 source-subtree 骨架，并动态验证整个 catalog。
 
-这不是 awesome 链接清单、Codex Skills 集合、UI 框架或托管 SaaS。首个公开预览版本 `v0.1.0` 包含三项能力；module 在 `v1.0.0` 前仍明确处于 pre-1.0 阶段：
+这不是 awesome 链接清单、Codex Skills 集合、UI 框架或托管 SaaS。Agent 友好接入由 Foundation 统一提供；公开 Feature catalog 只呈现 manifest 中真实注册的能力。module 在 `v1.0.0` 前仍明确处于 pre-1.0 阶段。
 
-| 能力 | 本仓库提供 | 宿主提供 |
-| --- | --- | --- |
-| Agent 友好接入 | 远程入口、Feature manifests、精确 SHA delivery、最小 lock、无状态语义校验、提取态契约测试 | Agent 按现有架构编写薄适配和宿主测试 |
-| Feedback | 脱敏 Draft、显式 Approved、HTTPS client、单租户 Relay | 触发、预览 UI、确认动作和失败体验 |
-| Updater | exact plan、stable-only、checksum、双版本验证、锁、备份、回滚 | 更新提示、授权、安装类型、重启和确认 |
+<!-- generated-feature-catalog:start -->
+## Feature Catalog（由 manifest 生成）
+
+下表由 `features/index.json` 及同一 revision 的 Feature manifests 生成；请运行 `go run ./cmd/feature-author sync-docs --root .` 更新，`validate` 会拒绝漂移。
+
+| Feature | 状态 | 首发版本 | Delivery | Quick Start |
+| --- | --- | --- | --- | --- |
+| [User-approved in-product feedback](features/feedback/README.md) | released / stable | v0.1.0 | go-module + source-subtree | `GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@<resolved-commit-sha>` |
+| [Stable-only standalone updater](features/updater/README.md) | released / stable | v0.1.0 | go-module | `GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@<resolved-commit-sha>` |
+<!-- generated-feature-catalog:end -->
 
 ## 无 Clone 接入
 

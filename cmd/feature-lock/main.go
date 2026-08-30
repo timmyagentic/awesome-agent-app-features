@@ -6,38 +6,48 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/timmyagentic/awesome-agent-app-features/internal/clioutput"
 	"github.com/timmyagentic/awesome-agent-app-features/internal/lockcheck"
 )
 
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-h" || os.Args[1] == "--help") {
-		usage()
-		return
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+func run(arguments []string, stdout, stderr io.Writer) int {
+	jsonMode := containsArgument(arguments, "--json")
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		usage(stderr)
+		return 0
 	}
-	if len(os.Args) < 2 || os.Args[1] != "validate" {
-		usage()
-		os.Exit(2)
+	if len(arguments) < 1 || arguments[0] != "validate" {
+		return writeArgumentFailure(jsonMode, stdout, stderr, "expected the validate command")
 	}
 	flags := flag.NewFlagSet("feature-lock validate", flag.ContinueOnError)
-	flags.SetOutput(os.Stderr)
+	if jsonMode {
+		flags.SetOutput(io.Discard)
+	} else {
+		flags.SetOutput(stderr)
+	}
 	lockPath := flags.String("lock", "agent-app-features.lock.json", "path to the host lock")
 	hostRoot := flags.String("host", ".", "target project root")
 	sourceRoot := flags.String("source", "", "temporary exact-commit foundation source root")
 	sourceCommit := flags.String("source-commit", "", "resolved 40-character foundation commit SHA")
-	if err := flags.Parse(os.Args[2:]); err != nil {
+	jsonOutput := flags.Bool("json", false, "emit the stable Agent-readable JSON result")
+	if err := flags.Parse(arguments[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			return
+			return 0
 		}
-		os.Exit(2)
+		return writeArgumentFailure(jsonMode, stdout, stderr, err.Error())
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(os.Stderr, "unexpected argument %q\n", flags.Arg(0))
-		os.Exit(2)
+		return writeArgumentFailure(*jsonOutput, stdout, stderr, fmt.Sprintf("unexpected argument %q", flags.Arg(0)))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -51,15 +61,50 @@ func main() {
 		Now:           time.Now,
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "feature lock validation failed:", err)
-		os.Exit(1)
+		if *jsonOutput {
+			result := clioutput.New(false, "feature-lock validate", "feature_lock_invalid", "The host Feature lock is invalid.", err.Error(), "Fix the reported source, delivery, or host-file mismatch and regenerate the lock only from current verified truth.", "feature-lock validate --json")
+			_ = clioutput.Write(stdout, result)
+		} else {
+			fmt.Fprintln(stderr, "feature lock validation failed:", err)
+		}
+		return 1
 	}
-	fmt.Printf("feature lock valid: %d feature(s), %d file(s), %d Go module(s), %d source subtree(s)\n",
-		report.Features, report.Files, report.GoModules, report.SourceSubtrees)
+	if *jsonOutput {
+		result := clioutput.New(true, "feature-lock validate", "feature_lock_valid", "The host Feature lock is valid.", "The exact source, declared deliveries, Go modules, source subtrees, and host files are consistent.", "No remediation is required.", "")
+		result.Data = map[string]int{"features": report.Features, "files": report.Files, "go_modules": report.GoModules, "source_subtrees": report.SourceSubtrees}
+		if err := clioutput.Write(stdout, result); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+	} else {
+		fmt.Fprintf(stdout, "feature lock valid: %d feature(s), %d file(s), %d Go module(s), %d source subtree(s)\n",
+			report.Features, report.Files, report.GoModules, report.SourceSubtrees)
+	}
+	return 0
 }
 
-func usage() {
-	fmt.Fprintln(os.Stderr, "Usage: feature-lock validate --source <exact-commit-source> --source-commit <sha> [--host <project>] [--lock <file>]")
+func writeArgumentFailure(jsonMode bool, stdout, stderr io.Writer, why string) int {
+	if jsonMode {
+		result := clioutput.New(false, "feature-lock validate", "invalid_arguments", "The Feature lock command arguments are invalid.", why, "Use the validate command with an exact source root and 40-character source commit.", "feature-lock validate --help")
+		_ = clioutput.Write(stdout, result)
+	} else {
+		fmt.Fprintln(stderr, why)
+		usage(stderr)
+	}
+	return 2
+}
+
+func containsArgument(arguments []string, wanted string) bool {
+	for _, argument := range arguments {
+		if argument == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func usage(writer io.Writer) {
+	fmt.Fprintln(writer, "Usage: feature-lock validate --source <exact-commit-source> --source-commit <sha> [--host <project>] [--lock <file>] [--json]")
 }
 
 func resolveModule(ctx context.Context, hostRoot, modulePath string) (lockcheck.ModuleInfo, error) {

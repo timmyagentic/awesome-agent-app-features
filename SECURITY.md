@@ -10,8 +10,8 @@ example that could cause unauthorized feedback submission, data disclosure,
 unsafe release selection, integrity bypass, executable corruption, or rollback
 failure.
 
-The supported public line starts at `v1.0.0` and follows the latest `v1.x`
-GitHub Release. Security fixes will use new
-immutable patch versions; release tags will never be moved.
+The supported public preview line starts at `v0.1.0` and follows the latest
+`v0.x` GitHub Release. Security fixes will use new immutable versions; release
+tags will never be moved.
 
 See [docs/security.md](docs/security.md) for the threat model and residual risks.

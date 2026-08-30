@@ -6,7 +6,7 @@
   "maturity": "stable",
   "contract": "v1",
   "release_status": "released",
-  "since": "v1.0.0",
+  "since": "v0.1.0",
   "runtime": ["go", "cloudflare-worker"],
   "package": "./feedback",
   "integration_model": "agent-assisted-code-change",

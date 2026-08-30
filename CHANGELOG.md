@@ -2,7 +2,7 @@
 
 All notable changes are documented here. This project follows Semantic Versioning.
 
-## [1.0.0] - 2026-08-30
+## [0.1.0] - 2026-08-30
 
 ### Added
 
@@ -21,6 +21,6 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 ### Compatibility
 
-- This release defines the first stable contract. Pre-v1 commit consumers remain unsupported; migrate them to `v1.0.0` or its exact commit.
+- This release is the first public preview of contract v1. The module remains pre-1.0; consumers should pin `v0.1.0` or its exact commit and review migration notes before future minor upgrades.
 - The minimum Go version is 1.25.
 - Feedback wire schema 1 is served only at `POST /v1/feedback`.

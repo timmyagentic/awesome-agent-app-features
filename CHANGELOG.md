@@ -4,6 +4,8 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 ## Unreleased
 
+## [0.1.1] - 2026-08-31
+
 ### Added
 
 - Contributor-facing `feature-author` scaffolding, catalog validation, release metadata checks, and an end-to-end temporary third-Feature simulation.
@@ -14,6 +16,7 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 - Released and unreleased Features may coexist, historical `since` tags are preserved across later releases, and source-subtree-only Features no longer need synthetic Go packages or examples.
 - Host locks may identify a canonical nested `go.mod` in monorepos while retaining traversal, symlink, version, replace, and content checks.
+- Manifest path semantics now have one implementation in `feature-author validate`, the obsolete interactive Updater example is removed, and every Relay verification path delegates to the source subtree's single `verify.sh` command list.
 
 ## [0.1.0] - 2026-08-30
 

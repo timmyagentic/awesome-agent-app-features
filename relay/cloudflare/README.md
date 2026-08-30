@@ -2,6 +2,8 @@
 
 This is a self-hosted, single-tenant adapter from provider-neutral Feedback v1 to GitHub Issues. It owns GitHub title/body rendering, label, repository, token, rate limiting, and best-effort deduplication. Product binaries contain none of those credentials or destination controls.
 
+The foundation's `v1.0.0` tag versions this source subtree. Its private npm metadata intentionally remains `0.0.0-unreleased`: the Relay is copied into host-owned infrastructure and is not published as an npm package.
+
 ## Configure
 
 1. Let the integration Agent resolve `features/index.json` to one CI-successful commit SHA, then extract only the declared `relay/cloudflare` source subtree from that same-SHA GitHub archive or Contents API into host-owned infrastructure. The user does not clone the foundation.

@@ -5,8 +5,8 @@
   "repository": "https://github.com/timmyagentic/awesome-agent-app-features",
   "module": "github.com/timmyagentic/awesome-agent-app-features",
   "contract": "v1",
-  "release_status": "unreleased",
-  "since": null,
+  "release_status": "released",
+  "since": "v1.0.0",
   "integration_model": "remote-agent-assisted-code-change",
   "entrypoint": {
     "path": "features/index.json",

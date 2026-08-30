@@ -57,7 +57,7 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 		entry.ID != "awesome-agent-app-features" ||
 		entry.Repository != "https://github.com/timmyagentic/awesome-agent-app-features" ||
 		entry.Module != "github.com/timmyagentic/awesome-agent-app-features" ||
-		entry.Contract != "v1" || entry.ReleaseStatus != "unreleased" || entry.Since != nil ||
+		entry.Contract != "v1" || entry.ReleaseStatus != "released" || entry.Since == nil || *entry.Since != "v1.0.0" ||
 		entry.IntegrationModel != "remote-agent-assisted-code-change" {
 		t.Fatalf("unexpected entry identity: %+v", entry)
 	}

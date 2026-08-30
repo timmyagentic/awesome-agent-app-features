@@ -25,6 +25,59 @@ func TestValidateAcceptsExactDeclaredHostIntegration(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsNestedGoModuleTarget(t *testing.T) {
+	options := validOptions(t)
+	nestedRoot := filepath.Join(options.HostRoot, "backend")
+	writeFile(t, filepath.Join(nestedRoot, "go.mod"), "module example.com/host/backend\n\ngo 1.25.0\n")
+	lock := readLockMap(t, options.LockPath)
+	feature := lock["features"].([]any)[0].(map[string]any)
+	delivery := feature["deliveries"].([]any)[0].(map[string]any)
+	delivery["target"] = "backend/go.mod"
+	feature["files"] = append(feature["files"].([]any), "backend/go.mod")
+	writeJSON(t, options.LockPath, lock)
+	options.ResolveModule = func(_ context.Context, moduleRoot, modulePath string) (ModuleInfo, error) {
+		if moduleRoot != nestedRoot {
+			t.Fatalf("module root = %q, want %q", moduleRoot, nestedRoot)
+		}
+		if modulePath != "github.com/timmyagentic/awesome-agent-app-features" {
+			t.Fatalf("module path = %q", modulePath)
+		}
+		return ModuleInfo{Version: testVersion, Directory: options.SourceRoot}, nil
+	}
+	if _, err := Validate(context.Background(), options); err != nil {
+		t.Fatalf("Validate nested module target: %v", err)
+	}
+}
+
+func TestValidateChecksPackageContentAtEveryModuleTarget(t *testing.T) {
+	options := validOptions(t)
+	nestedRoot := filepath.Join(options.HostRoot, "backend")
+	writeFile(t, filepath.Join(nestedRoot, "go.mod"), "module example.com/host/backend\n\ngo 1.25.0\n")
+	lock := readLockMap(t, options.LockPath)
+	feature := lock["features"].([]any)[0].(map[string]any)
+	deliveries := feature["deliveries"].([]any)
+	first := deliveries[0].(map[string]any)
+	deliveries = append(deliveries, map[string]any{
+		"mode": first["mode"], "source": first["source"], "target": "backend/go.mod", "version": first["version"],
+	})
+	feature["deliveries"] = deliveries
+	feature["files"] = append(feature["files"].([]any), "backend/go.mod")
+	writeJSON(t, options.LockPath, lock)
+
+	driftedModule := t.TempDir()
+	writeFile(t, filepath.Join(driftedModule, "go.mod"), "module github.com/timmyagentic/awesome-agent-app-features\n\ngo 1.25.0\n")
+	writeFile(t, filepath.Join(driftedModule, "feedback", "model.go"), "package feedback\n")
+	options.ResolveModule = func(_ context.Context, moduleRoot, _ string) (ModuleInfo, error) {
+		if moduleRoot == nestedRoot {
+			return ModuleInfo{Version: testVersion, Directory: driftedModule}, nil
+		}
+		return ModuleInfo{Version: testVersion, Directory: options.SourceRoot}, nil
+	}
+	if _, err := Validate(context.Background(), options); err == nil || !strings.Contains(err.Error(), "module content mismatch") {
+		t.Fatalf("error = %v, want second module target content mismatch", err)
+	}
+}
+
 func TestValidateAcceptsDeclaredHostOwnedSubtreeFiles(t *testing.T) {
 	options := validOptions(t)
 	target := filepath.Join(options.HostRoot, "infrastructure", "feedback-relay")

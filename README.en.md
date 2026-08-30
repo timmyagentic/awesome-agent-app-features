@@ -6,13 +6,18 @@ Headless feature-foundation code for agent applications. The user stays in the t
 
 To contribute a new Feature, start with [CONTRIBUTING.md](CONTRIBUTING.md) and the [author guide](docs/adding-a-feature.md). `feature-author` scaffolds either a Go core or a source-subtree-only Feature and validates the complete catalog dynamically.
 
-This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The first public preview, `v0.1.0`, covers three capabilities; the module remains explicitly pre-1.0 until a future `v1.0.0`:
+This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The Foundation provides the common Agent integration path; the public Feature catalog lists only capabilities actually registered by manifests. The module remains explicitly pre-1.0 until a future `v1.0.0`.
 
-| Capability | This repository provides | The host provides |
-| --- | --- | --- |
-| Agent-friendly integration | Remote entry, manifests, exact-SHA delivery, minimal lock, stateless semantic validation, extracted-delivery tests | Thin adapters fitted to the existing architecture and host tests |
-| Feedback | Redacted Draft, explicit Approved, HTTPS client, single-tenant Relay | Trigger, preview UI, confirmation, and failure UX |
-| Updater | Exact plan, stable-only selection, checksum, two version checks, locks, backup, rollback | Prompt, authorization, install-kind routing, restart, acknowledgement |
+<!-- generated-feature-catalog:start -->
+## Feature catalog (generated from manifests)
+
+This table is generated from `features/index.json` and the Feature manifests at the same revision. Run `go run ./cmd/feature-author sync-docs --root .` to update it; `validate` rejects drift.
+
+| Feature | Status | Since | Delivery | Quick start |
+| --- | --- | --- | --- | --- |
+| [User-approved in-product feedback](features/feedback/README.md) | released / stable | v0.1.0 | go-module + source-subtree | `GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@<resolved-commit-sha>` |
+| [Stable-only standalone updater](features/updater/README.md) | released / stable | v0.1.0 | go-module | `GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@<resolved-commit-sha>` |
+<!-- generated-feature-catalog:end -->
 
 ## No-clone integration
 

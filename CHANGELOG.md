@@ -8,10 +8,12 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 - Contributor-facing `feature-author` scaffolding, catalog validation, release metadata checks, and an end-to-end temporary third-Feature simulation.
 - Dynamic no-checkout consumption of released manifest deliveries and examples instead of a fixed Feedback/Updater cohort.
+- Manifest-generated public README catalogs, focused Feature contribution templates, and stable Agent-readable JSON results for author and lock validation commands.
 
 ### Changed
 
 - Released and unreleased Features may coexist, historical `since` tags are preserved across later releases, and source-subtree-only Features no longer need synthetic Go packages or examples.
+- Host locks may identify a canonical nested `go.mod` in monorepos while retaining traversal, symlink, version, replace, and content checks.
 
 ## [0.1.0] - 2026-08-30
 

@@ -95,15 +95,18 @@ GOWORK=off go run \
   --source "${temporary_exact_source_root}" \
   --source-commit "${resolved_commit}" \
   --host "${target_project_root}" \
-  --lock "${target_project_root}/agent-app-features.lock.json"
+  --lock "${target_project_root}/agent-app-features.lock.json" \
+  --json
 ```
 
 `temporary_exact_source_root` is the temporary full extraction of the same-SHA archive. The validator stores no lifecycle state, does not run host checks, and does not replace the remote CI gate. It rejects mixed sources, duplicate or unknown Features, undeclared deliveries, mismatched Go module version or content, mismatched non-configuration subtree content, missing subtree targets, and nonexistent claimed host files.
 
+On both success and failure, `--json` returns stable `code`, `what`, `why`, `remediation`, and `next_command` fields for the Agent. It creates no receipt, daemon, lifecycle state, or automatic repair write.
+
 The lock records only:
 
 - source repository and full commit SHA;
-- Feature ID, contract, actual delivery, and resolved module version;
+- Feature ID, contract, actual delivery, the host-relative `go.mod` path (including monorepo subdirectories), and resolved module version;
 - host-relative files changed by the agent;
 - successful checks, `verified_at`, and honest `unverified` boundaries.
 

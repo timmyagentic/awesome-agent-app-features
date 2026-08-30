@@ -208,16 +208,21 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 				if !declared {
 					return report, fmt.Errorf("go package %q is not declared by feature %q", delivery.Source, feature.ID)
 				}
-				if modulePath != entry.Module || delivery.Target != "go.mod" || strings.TrimSpace(delivery.Version) == "" {
+				if modulePath != entry.Module || strings.TrimSpace(delivery.Version) == "" {
 					return report, fmt.Errorf("go package %q has inconsistent module delivery metadata", delivery.Source)
 				}
-				module, ok := moduleCache[modulePath]
+				moduleRoot, err := goModuleDirectory(options.HostRoot, delivery.Target)
+				if err != nil {
+					return report, fmt.Errorf("go package %q target: %w", delivery.Source, err)
+				}
+				moduleKey := modulePath + "\x00" + delivery.Target
+				module, ok := moduleCache[moduleKey]
 				if !ok {
-					module, err = options.ResolveModule(ctx, options.HostRoot, modulePath)
+					module, err = options.ResolveModule(ctx, moduleRoot, modulePath)
 					if err != nil {
 						return report, fmt.Errorf("resolve Go module %s: %w", modulePath, err)
 					}
-					moduleCache[modulePath] = module
+					moduleCache[moduleKey] = module
 				}
 				if module.Replaced {
 					return report, fmt.Errorf("go module %s uses a forbidden local replace", modulePath)
@@ -226,7 +231,7 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 					return report, fmt.Errorf("module version mismatch for %s: lock has %s, host has %s", modulePath, delivery.Version, module.Version)
 				}
 				packageRelative := strings.TrimPrefix(delivery.Source, modulePath+"/")
-				contentKey := modulePath + "\x00" + packageRelative
+				contentKey := moduleKey + "\x00" + packageRelative
 				if _, checked := checkedModuleFiles[contentKey]; !checked {
 					if err := compareModuleContent(options.SourceRoot, module.Directory, packageRelative); err != nil {
 						return report, fmt.Errorf("module content mismatch for %s: %w", delivery.Source, err)
@@ -273,6 +278,17 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 	}
 	report.GoModules = len(moduleCache)
 	return report, nil
+}
+
+func goModuleDirectory(hostRoot, target string) (string, error) {
+	if strings.Contains(target, "\\") || path.IsAbs(target) || path.Clean(target) != target || path.Base(target) != "go.mod" {
+		return "", fmt.Errorf("target must be a canonical host-relative go.mod path")
+	}
+	goMod, err := requireRegularFile(hostRoot, target, "Go module target")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(goMod), nil
 }
 
 func validateOptions(options *Options) error {

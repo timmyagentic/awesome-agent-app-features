@@ -121,6 +121,14 @@ test("remote entry and minimal host lock satisfy their schemas", async () => {
   };
   assert.equal(validateLock(lock), true, JSON.stringify(validateLock.errors));
 
+  const nestedModule = structuredClone(lock);
+  nestedModule.features[0].deliveries[0].target = "backend/go.mod";
+  assert.equal(validateLock(nestedModule), true, `nested Go module: ${JSON.stringify(validateLock.errors)}`);
+
+  const nonModuleTarget = structuredClone(lock);
+  nonModuleTarget.features[0].deliveries[0].target = "backend/dependencies.json";
+  assert.equal(validateLock(nonModuleTarget), false, "lock accepted a non-go.mod module target");
+
   const unsafePath = structuredClone(lock);
   unsafePath.features[0].files = ["../../outside"];
   assert.equal(validateLock(unsafePath), false, "lock accepted a traversal path");

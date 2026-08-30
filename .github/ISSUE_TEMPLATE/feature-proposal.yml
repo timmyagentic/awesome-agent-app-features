@@ -1,0 +1,63 @@
+name: Feature proposal
+description: Propose a reusable, host-agnostic Feature before substantial implementation.
+title: "Feature: "
+labels: ["feature-proposal"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing Features and proposals and found no equivalent capability.
+          required: true
+        - label: This proposal keeps product UI, authorization, localization, credentials, and deployment policy in the host.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and reusable value
+      description: What repeated host problem does this solve, and why does it belong in a shared Foundation?
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Reusable boundary
+      description: Describe the provider-neutral core and any generic infrastructure adapters.
+    validations:
+      required: true
+  - type: textarea
+    id: host
+    attributes:
+      label: Host responsibilities
+      description: List the UI, authorization, product policy, localization, credentials, restart, and failure UX that remain host-owned.
+    validations:
+      required: true
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Security and compatibility invariants
+      description: List the behavior that later releases and host adapters must preserve.
+    validations:
+      required: true
+  - type: textarea
+    id: adopter
+    attributes:
+      label: Real adopter
+      description: Name the non-fixture host and explain how it will exercise this Feature with an exact source lock.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification evidence
+      description: Describe focused Foundation checks, remote/no-clone proof, host tests, and complete host verification.
+    validations:
+      required: true
+  - type: textarea
+    id: unverified
+    attributes:
+      label: UNVERIFIED boundaries
+      description: List production, credential, deployment, client, paid, or restart checks that cannot be executed yet. Write "None" only when every boundary has current evidence.
+    validations:
+      required: true

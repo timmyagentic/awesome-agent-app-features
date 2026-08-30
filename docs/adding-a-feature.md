@@ -26,7 +26,7 @@ go run ./cmd/feature-author new \
   --runtime javascript
 ```
 
-The command creates `features/<id>/feature.json`, `features/<id>/README.md`, the declared delivery skeleton, and one sorted entry in `features/index.json`. It refuses to overwrite an existing Feature.
+The command creates `features/<id>/feature.json`, `features/<id>/README.md`, the declared delivery skeleton, and one sorted entry in `features/index.json`. It refuses to overwrite an existing Feature and synchronizes the generated catalog blocks in both public READMEs from that manifest truth.
 
 Source-subtree-only Features do not need a synthetic Go package or `go-run` example. Every source-subtree delivery declares a repository-relative `verify` script inside the subtree; no-checkout CI runs that script after copying the delivery into the temporary host. Replace the scaffold's minimal `verify.sh` with the runtime-appropriate install/test/type/generated-output/dry-run/audit gate before release.
 
@@ -49,20 +49,23 @@ Do not assign `since` before the introduction tag exists. In the release commit,
 ## 5. Validate
 
 ```bash
-go run ./cmd/feature-author validate --root .
+go run ./cmd/feature-author sync-docs --root .
+go run ./cmd/feature-author validate --root . --json
 make verify
 make fuzz
 ```
 
-The author validator discovers all manifests; it contains no fixed Feature list. No-checkout CI dynamically tests released Go deliveries, runs zero-network examples, materializes source-subtrees into a temporary host, creates a host lock, and runs the same-SHA validator.
+The author validator discovers all manifests; it contains no fixed Feature list. It also rejects a public README whose generated catalog block differs from `features/index.json` and the selected manifests. No-checkout CI dynamically tests released Go deliveries, runs zero-network examples, materializes source-subtrees into a temporary host, creates a host lock, and runs the same-SHA validator.
 
 Before publication, the manual workflow runs:
 
 ```bash
-go run ./cmd/feature-author release-check --root . --tag vX.Y.Z
+go run ./cmd/feature-author release-check --root . --tag vX.Y.Z --json
 ```
 
 This accepts historical `since` tags on the release history, accepts a new Feature introduced by the current tag, and keeps unreleased Features at `since: null`.
+
+JSON mode always returns the stable fields `code`, `what`, `why`, `remediation`, and `next_command` together with `schema`, `ok`, and `command`. It changes presentation only; the commands remain stateless and retain exit code 0 for success, 1 for a validation failure, and 2 for invalid arguments.
 
 ## 6. Completion evidence
 

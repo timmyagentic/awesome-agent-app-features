@@ -95,15 +95,18 @@ GOWORK=off go run \
   --source "${temporary_exact_source_root}" \
   --source-commit "${resolved_commit}" \
   --host "${target_project_root}" \
-  --lock "${target_project_root}/agent-app-features.lock.json"
+  --lock "${target_project_root}/agent-app-features.lock.json" \
+  --json
 ```
 
 `temporary_exact_source_root` 是同 SHA archive 的临时完整解压目录。Validator 不保存状态、不执行宿主检查、不联网替代 CI；它拒绝 mixed-source、重复或不存在的 Feature、未声明 delivery、Go module 版本或内容不一致、subtree 非配置文件来源不一致、缺失 subtree 目标和虚假宿主文件。
 
+`--json` 的成功与失败都稳定返回 `code`、`what`、`why`、`remediation` 和 `next_command`，供 Agent 决定下一步；它不创建 receipt、daemon、生命周期状态或修复写入。
+
 Lock 只记录：
 
 - source repository 和完整 commit SHA；
-- Feature ID、contract、实际 delivery 与 resolved module version；
+- Feature ID、contract、实际 delivery、宿主中的 `go.mod` 相对路径（支持 monorepo 子目录）与 resolved module version；
 - Agent 修改的宿主相对路径；
 - 成功执行的 checks、`verified_at` 和诚实的 `unverified`。
 

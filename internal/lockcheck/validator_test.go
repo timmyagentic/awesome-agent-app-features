@@ -106,6 +106,17 @@ func TestValidateRejectsSemanticDrift(t *testing.T) {
 			want: "not declared",
 		},
 		{
+			name: "unreleased feature",
+			mutate: func(t *testing.T, options *Options, _ map[string]any) {
+				path := filepath.Join(options.SourceRoot, "features", "feedback", "feature.json")
+				manifest := readLockMap(t, path)
+				manifest["release_status"] = "unreleased"
+				manifest["since"] = nil
+				writeJSON(t, path, manifest)
+			},
+			want: "unreleased",
+		},
+		{
 			name: "undeclared package",
 			mutate: func(_ *testing.T, _ *Options, lock map[string]any) {
 				feature := lock["features"].([]any)[0].(map[string]any)

@@ -82,3 +82,7 @@ Go packages arrive through the module cache at one CI-successful commit SHA. Inf
 `agent-app-features.lock.json` records source, deliveries, relative host files, checks, and uncertainty. It is deliberately not a lifecycle database: Git provides history, current code provides ownership, and host tests provide truth. An agent can inspect, refine, upgrade, or remove ordinary code without a foundation-defined action state machine.
 
 Contract tests reject third-party imports and product/channel terms in core source. They are guardrails; an architectural boundary change still requires review.
+
+## Feature authoring plane
+
+Contributors use `cmd/feature-author` and `docs/adding-a-feature.md` rather than copying the initial Feedback/Updater cohort into new hard-coded tests. The catalog may contain released and unreleased manifests at the same source revision; ordinary consumers skip unreleased Features, while `release-check` confirms each Feature and matching metadata really existed at its historical introduction tag. Go deliveries receive public API, zero-network example, and headless-core gates dynamically. A source-subtree-only Feature may omit a synthetic Go package and example, but it must declare an in-subtree `verify` script that no-checkout CI runs after independent extraction.

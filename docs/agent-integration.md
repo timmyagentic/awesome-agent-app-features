@@ -19,6 +19,8 @@ https://raw.githubusercontent.com/timmyagentic/awesome-agent-app-features/main/f
 3. 从该 SHA 重新读取入口和所选 Feature 的 manifest、README、schema 与 delivery。
 4. 所有资源、依赖和模板使用同一 SHA；任何漂移都停止接入。
 
+入口可以同时列出已发布和开发中的 Feature。普通接入只能选择 manifest 中 `release_status: released` 且 `since` 指向现有 tag 的 Feature；`unreleased` Feature 仅供显式源码评估，不得作为稳定能力安装。
+
 参考命令：
 
 ```bash

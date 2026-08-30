@@ -31,7 +31,7 @@
   },
   "agent_flow": [
     "Resolve main to one full commit SHA and require successful CI.",
-    "Read this entry and the selected feature manifest from that same SHA.",
+    "Read this entry and the selected feature manifest from that same SHA; ordinary integrations skip manifests whose release_status is unreleased.",
     "Map the feature responsibilities and invariants to the target project.",
     "Apply only the delivery items declared by the feature.",
     "Run remote conformance and the target project's normal verification.",

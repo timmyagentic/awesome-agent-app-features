@@ -1,8 +1,10 @@
 # Awesome Agent App Features
 
-[中文](README.md) · [Agent integration](docs/agent-integration.en.md) · [Compatibility](COMPATIBILITY.md) · [Security](docs/security.md)
+[中文](README.md) · [Agent integration](docs/agent-integration.en.md) · [Contribute a Feature](docs/adding-a-feature.md) · [Compatibility](COMPATIBILITY.md) · [Security](docs/security.md)
 
 Headless feature-foundation code for agent applications. The user stays in the target project while a coding agent integrates low-level capabilities from remote contracts. Cards, commands, authorization, localization, install kinds, and product flow remain host-owned.
+
+To contribute a new Feature, start with [CONTRIBUTING.md](CONTRIBUTING.md) and the [author guide](docs/adding-a-feature.md). `feature-author` scaffolds either a Go core or a source-subtree-only Feature and validates the complete catalog dynamically.
 
 This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The first public preview, `v0.1.0`, covers three capabilities; the module remains explicitly pre-1.0 until a future `v1.0.0`:
 

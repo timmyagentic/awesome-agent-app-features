@@ -26,7 +26,8 @@
       "pin": "resolved-commit",
       "path": "relay/cloudflare",
       "destination": "host-infrastructure",
-      "host_owned_files": ["worker-configuration.d.ts", "wrangler.jsonc"]
+      "host_owned_files": ["worker-configuration.d.ts", "wrangler.jsonc"],
+      "verify": "verify.sh"
     }
   ],
   "remote_examples": [

@@ -16,8 +16,8 @@ UI framework, or Codex Skills collection.
   host.
 - Every feature manifest must declare `foundation.core`, provided `adapters`,
   `foundation.host`, and `foundation.excludes`.
-- Manifests must distinguish the v1 contract from publication truth:
-  `release_status: unreleased` requires `since: null` until a tag actually exists.
+- Manifests must distinguish their compatibility contract from publication truth:
+  `release_status: unreleased` requires `since: null` until a tag actually exists. Released and unreleased Features may coexist; existing Features preserve their historical `since` when a later Feature is published.
 - Treat every `invariants` entry in `features/*/feature.json` as a compatibility
   and security boundary.
 - Feedback submission must continue to require an opaque `Approved` value.
@@ -59,3 +59,5 @@ Run before handing off a change:
 ```bash
 make verify
 ```
+
+For a new Feature, start with `docs/adding-a-feature.md` and use `cmd/feature-author`; do not copy the current Feedback/Updater cohort into a new hard-coded test list.

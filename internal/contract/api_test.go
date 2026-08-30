@@ -16,7 +16,7 @@ import (
 
 func TestV1PublicAPIMatchesSnapshot(t *testing.T) {
 	root := repositoryRoot(t)
-	packages := []string{"feedback", "feedback/httpclient", "updater", "updater/github"}
+	packages := publicPackageDirectories(t, root)
 	actual := publicAPISnapshot(t, root, packages)
 	if strings.Contains(actual, "<inferred>") {
 		t.Fatal("exported variables must declare an explicit type for the v1 API contract")

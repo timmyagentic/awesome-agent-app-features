@@ -119,7 +119,7 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 		}
 		var item manifest
 		readJSON(t, filepath.Join(root, filepath.FromSlash(feature.Manifest)), &item)
-		if item.ID != feature.ID || item.Contract != feature.Contract || item.ReleaseStatus != entry.ReleaseStatus {
+		if item.ID != feature.ID || item.Contract != feature.Contract {
 			t.Errorf("entry/manifest mismatch for %q", feature.ID)
 		}
 	}
@@ -166,11 +166,7 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 		".lock.schema_path",
 		"agent-app-features.lock.json",
 		"full-commit-sha",
-		"GOPROXY=direct go get",
-		"/compat/v1",
-		"/examples/feedback@",
-		"/examples/updater-demo@",
-		"/cmd/feature-lock@",
+		"verify-remote-consumer.sh",
 		"/relay/cloudflare/package.json",
 		"tar -tvzf",
 		"npm run typecheck",
@@ -179,6 +175,43 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 		if !strings.Contains(job, required) {
 			t.Errorf("remote consumer job does not prove %q", required)
 		}
+	}
+	script, err := os.ReadFile(filepath.Join(repositoryRoot(t), "scripts", "verify-remote-consumer.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	scriptText := string(script)
+	for _, required := range []string{
+		".features[].manifest",
+		".delivery[]",
+		".remote_examples[]",
+		"GOPROXY=direct go get",
+		"/compat/v1",
+		"/cmd/feature-author@",
+		"/cmd/feature-lock@",
+	} {
+		if !strings.Contains(scriptText, required) {
+			t.Errorf("generic remote consumer script does not prove %q", required)
+		}
+	}
+	for _, hardCoded := range []string{"/examples/feedback@", "/examples/updater-demo@", `id: "feedback"`, `id: "updater"`} {
+		if strings.Contains(scriptText, hardCoded) {
+			t.Errorf("generic remote consumer script still hard-codes %q", hardCoded)
+		}
+	}
+}
+
+func TestReleaseWorkflowPreservesHistoricalFeatureIntroductionTags(t *testing.T) {
+	workflow, err := os.ReadFile(filepath.Join(repositoryRoot(t), ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(workflow)
+	if strings.Contains(text, `.since == $tag`) {
+		t.Fatal("release workflow rewrites every historical Feature introduction tag")
+	}
+	if !strings.Contains(text, "feature-author") || !strings.Contains(text, "release-check") {
+		t.Fatal("release workflow does not use the Feature author release metadata validator")
 	}
 }
 

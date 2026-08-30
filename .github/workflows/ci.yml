@@ -144,84 +144,11 @@ jobs:
             npm audit --audit-level=high
           )
 
-          cd "${consumer_directory}"
-          go mod init example.com/remote-agent-consumer
-          GOWORK=off GOPROXY=direct go get "${REMOTE_MODULE}@${REMOTE_COMMIT}"
-          GOWORK=off GOPROXY=direct go test "${REMOTE_MODULE}/compat/v1"
-          GOWORK=off GOPROXY=direct go run "${REMOTE_MODULE}/examples/feedback@${REMOTE_COMMIT}" -description "remote CI preview"
-          GOWORK=off GOPROXY=direct go run "${REMOTE_MODULE}/examples/updater-demo@${REMOTE_COMMIT}"
-
-          mkdir -p infrastructure
-          cp -R "${source_directory}/relay/cloudflare" infrastructure/feedback-relay
-          module_version="$(GOWORK=off go list -m -f '{{.Version}}' "${REMOTE_MODULE}")"
-          verified_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-          jq -n \
-            --arg commit "${REMOTE_COMMIT}" \
-            --arg version "${module_version}" \
-            --arg verified_at "${verified_at}" \
-            '{
-              schema: 1,
-              source: {
-                repository: "timmyagentic/awesome-agent-app-features",
-                commit: $commit
-              },
-              features: [
-                {
-                  id: "feedback",
-                  contract: "v1",
-                  deliveries: [
-                    {
-                      mode: "go-module",
-                      source: "github.com/timmyagentic/awesome-agent-app-features/feedback",
-                      target: "go.mod",
-                      version: $version
-                    },
-                    {
-                      mode: "go-module",
-                      source: "github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient",
-                      target: "go.mod",
-                      version: $version
-                    },
-                    {
-                      mode: "source-subtree",
-                      source: "relay/cloudflare",
-                      target: "infrastructure/feedback-relay"
-                    }
-                  ],
-                  files: ["go.mod", "go.sum", "infrastructure/feedback-relay/package.json"],
-                  verified_at: $verified_at,
-                  checks: ["remote Feedback preview", "extracted Relay verify"],
-                  unverified: []
-                },
-                {
-                  id: "updater",
-                  contract: "v1",
-                  deliveries: [
-                    {
-                      mode: "go-module",
-                      source: "github.com/timmyagentic/awesome-agent-app-features/updater",
-                      target: "go.mod",
-                      version: $version
-                    },
-                    {
-                      mode: "go-module",
-                      source: "github.com/timmyagentic/awesome-agent-app-features/updater/github",
-                      target: "go.mod",
-                      version: $version
-                    }
-                  ],
-                  files: ["go.mod", "go.sum"],
-                  verified_at: $verified_at,
-                  checks: ["remote Updater transaction"],
-                  unverified: []
-                }
-              ]
-            }' > agent-app-features.lock.json
-          GOWORK=off GOPROXY=direct go run "${REMOTE_MODULE}/cmd/feature-lock@${REMOTE_COMMIT}" validate \
-            --source "${source_directory}" \
-            --source-commit "${REMOTE_COMMIT}" \
-            --host "${consumer_directory}" \
-            --lock "${consumer_directory}/agent-app-features.lock.json"
+          sh "${source_directory}/scripts/verify-remote-consumer.sh" \
+            "${REMOTE_MODULE}" \
+            "${REMOTE_COMMIT}" \
+            "${source_directory}" \
+            "${consumer_directory}"
 
   relay:
     name: Feedback relay (Node ${{ matrix.node }})

@@ -126,23 +126,9 @@ jobs:
           test -z "$(tar -tzf "${archive_path}" | grep -E '(^|/)\.\.(/|$)' || true)"
           test -z "$(tar -tvzf "${archive_path}" | awk '$1 ~ /^l/ && $0 ~ /\/relay\/cloudflare\// { print }')"
 
-          archive_root="$(tar -tzf "${archive_path}" | sed -n '1{s#/$##;p;}')"
           source_directory="${consumer_directory}/source"
-          relay_directory="${consumer_directory}/relay"
-          mkdir -p "${source_directory}" "${relay_directory}"
+          mkdir -p "${source_directory}"
           tar -xzf "${archive_path}" -C "${source_directory}" --strip-components=1
-          tar -xzf "${archive_path}" -C "${relay_directory}" --strip-components=3 "${archive_root}/relay/cloudflare"
-
-          (
-            cd "${relay_directory}"
-            npm ci --ignore-scripts
-            npm test
-            npm run check
-            npm run typecheck
-            npm run types:check
-            npm run validate:worker
-            npm audit --audit-level=high
-          )
 
           sh "${source_directory}/scripts/verify-remote-consumer.sh" \
             "${REMOTE_MODULE}" \

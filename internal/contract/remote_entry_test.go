@@ -161,6 +161,9 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 	if strings.Contains(job, "actions/checkout") {
 		t.Fatal("remote consumer job checks out the foundation")
 	}
+	if strings.Contains(job, "npm ") {
+		t.Fatal("remote consumer job duplicates source-subtree verification instead of using its manifest entrypoint")
+	}
 	for _, required := range []string{
 		"features/index.json",
 		".lock.schema_path",
@@ -169,8 +172,6 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 		"verify-remote-consumer.sh",
 		"/relay/cloudflare/package.json",
 		"tar -tvzf",
-		"npm run typecheck",
-		"npm run types:check",
 	} {
 		if !strings.Contains(job, required) {
 			t.Errorf("remote consumer job does not prove %q", required)
@@ -184,6 +185,7 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 	for _, required := range []string{
 		".features[].manifest",
 		".delivery[]",
+		`sh "$target_directory/$verify_relative"`,
 		".remote_examples[]",
 		"GOPROXY=direct go get",
 		"/compat/v1",
@@ -197,6 +199,23 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 	for _, hardCoded := range []string{"/examples/feedback@", "/examples/updater-demo@", `id: "feedback"`, `id: "updater"`} {
 		if strings.Contains(scriptText, hardCoded) {
 			t.Errorf("generic remote consumer script still hard-codes %q", hardCoded)
+		}
+	}
+	verifyScript, err := os.ReadFile(filepath.Join(repositoryRoot(t), "relay", "cloudflare", "verify.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		"npm ci --ignore-scripts",
+		"npm test",
+		"npm run check",
+		"npm run typecheck",
+		"npm run types:check",
+		"npm run validate:worker",
+		"npm audit --audit-level=high",
+	} {
+		if !strings.Contains(string(verifyScript), required) {
+			t.Errorf("Relay verification entrypoint does not run %q", required)
 		}
 	}
 }

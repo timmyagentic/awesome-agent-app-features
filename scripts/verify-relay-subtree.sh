@@ -19,11 +19,4 @@ mkdir -p "$relay_root"
   tar -xf -
 )
 
-cd "$relay_root"
-npm ci --ignore-scripts
-npm test
-npm run check
-npm run typecheck
-npm run types:check
-npm run validate:worker
-npm audit --audit-level=high
+sh "$relay_root/verify.sh"

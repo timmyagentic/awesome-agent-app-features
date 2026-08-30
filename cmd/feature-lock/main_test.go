@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/timmyagentic/awesome-agent-app-features/internal/clioutput"
@@ -20,6 +21,11 @@ func TestRunJSONFailureHasStableRemediationFields(t *testing.T) {
 	}
 	if result.OK || result.Code != "feature_lock_invalid" || result.What == "" || result.Why == "" || result.Remediation == "" || result.NextCommand == "" {
 		t.Fatalf("unexpected result: %#v", result)
+	}
+	for _, required := range []string{"--source \"/missing\"", "--source-commit \"not-a-sha\"", "--host \".\"", "--lock \"agent-app-features.lock.json\"", "--json"} {
+		if !strings.Contains(result.NextCommand, required) {
+			t.Errorf("next command %q is missing %q", result.NextCommand, required)
+		}
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("JSON mode wrote stderr: %q", stderr.String())

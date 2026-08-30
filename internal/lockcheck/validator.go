@@ -231,7 +231,7 @@ func Validate(ctx context.Context, options Options) (Report, error) {
 					return report, fmt.Errorf("module version mismatch for %s: lock has %s, host has %s", modulePath, delivery.Version, module.Version)
 				}
 				packageRelative := strings.TrimPrefix(delivery.Source, modulePath+"/")
-				contentKey := modulePath + "\x00" + packageRelative
+				contentKey := moduleKey + "\x00" + packageRelative
 				if _, checked := checkedModuleFiles[contentKey]; !checked {
 					if err := compareModuleContent(options.SourceRoot, module.Directory, packageRelative); err != nil {
 						return report, fmt.Errorf("module content mismatch for %s: %w", delivery.Source, err)

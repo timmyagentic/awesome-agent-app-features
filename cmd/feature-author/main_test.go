@@ -42,6 +42,16 @@ func TestValidateJSONFailure(t *testing.T) {
 	}
 }
 
+func TestTopLevelHelpIsActionable(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if exitCode := run([]string{"--help"}, &stdout, &stderr); exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0", exitCode)
+	}
+	if !bytes.Contains(stdout.Bytes(), []byte("new|sync-docs|validate|release-check")) || stderr.Len() != 0 {
+		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
 func repositoryRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

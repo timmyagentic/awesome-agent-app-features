@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,7 +63,15 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 	})
 	if err != nil {
 		if *jsonOutput {
-			result := clioutput.New(false, "feature-lock validate", "feature_lock_invalid", "The host Feature lock is invalid.", err.Error(), "Fix the reported source, delivery, or host-file mismatch and regenerate the lock only from current verified truth.", "feature-lock validate --json")
+			retry := strings.Join([]string{
+				"feature-lock validate",
+				"--source", strconv.Quote(*sourceRoot),
+				"--source-commit", strconv.Quote(*sourceCommit),
+				"--host", strconv.Quote(*hostRoot),
+				"--lock", strconv.Quote(*lockPath),
+				"--json",
+			}, " ")
+			result := clioutput.New(false, "feature-lock validate", "feature_lock_invalid", "The host Feature lock is invalid.", err.Error(), "Fix the reported source, delivery, or host-file mismatch and regenerate the lock only from current verified truth.", retry)
 			_ = clioutput.Write(stdout, result)
 		} else {
 			fmt.Fprintln(stderr, "feature lock validation failed:", err)

@@ -20,6 +20,10 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 	if len(arguments) == 0 {
 		return authorArgumentFailure(false, stdout, stderr, "expected a command")
 	}
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		authorUsage(stdout)
+		return 0
+	}
 	switch arguments[0] {
 	case "validate":
 		flags := flag.NewFlagSet("validate", flag.ContinueOnError)
@@ -172,9 +176,13 @@ func authorArgumentFailure(jsonMode bool, stdout, stderr io.Writer, why string) 
 		_ = clioutput.Write(stdout, result)
 	} else {
 		fmt.Fprintln(stderr, "feature-author:", why)
-		fmt.Fprintln(stderr, "usage: feature-author <new|sync-docs|validate|release-check>")
+		authorUsage(stderr)
 	}
 	return 2
+}
+
+func authorUsage(writer io.Writer) {
+	fmt.Fprintln(writer, "usage: feature-author <new|sync-docs|validate|release-check>")
 }
 
 func hasArgument(arguments []string, wanted string) bool {

@@ -10,14 +10,8 @@ go-verify:
 	GOOS=windows GOARCH=amd64 go build ./...
 
 relay-verify:
-	npm ci --prefix relay/cloudflare --ignore-scripts
+	sh relay/cloudflare/verify.sh
 	node --test internal/contract/relay_contract.test.mjs
-	npm test --prefix relay/cloudflare
-	npm run check --prefix relay/cloudflare
-	npm run typecheck --prefix relay/cloudflare
-	npm run types:check --prefix relay/cloudflare
-	npm run validate:worker --prefix relay/cloudflare
-	npm audit --prefix relay/cloudflare --audit-level=high
 
 source-subtree-verify:
 	sh scripts/verify-relay-subtree.sh

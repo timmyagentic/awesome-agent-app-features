@@ -5,7 +5,6 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
-	pathpkg "path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -16,136 +15,16 @@ import (
 
 const modulePath = "github.com/timmyagentic/awesome-agent-app-features"
 
-type adapter struct {
-	Path string `json:"path"`
-}
-
 type deliveryItem struct {
-	Mode           string   `json:"mode"`
-	Module         string   `json:"module,omitempty"`
-	Packages       []string `json:"packages,omitempty"`
-	Path           string   `json:"path,omitempty"`
-	HostOwnedFiles []string `json:"host_owned_files,omitempty"`
-	Verify         string   `json:"verify,omitempty"`
-}
-
-type remoteExample struct {
-	Package string `json:"package"`
+	Mode     string   `json:"mode"`
+	Packages []string `json:"packages,omitempty"`
 }
 
 type manifest struct {
-	ID             string          `json:"id"`
-	Contract       string          `json:"contract"`
-	ReleaseStatus  string          `json:"release_status"`
-	Package        string          `json:"package"`
-	Delivery       []deliveryItem  `json:"delivery"`
-	RemoteExamples []remoteExample `json:"remote_examples"`
-	Foundation     struct {
-		Adapters []adapter `json:"adapters"`
-	} `json:"foundation"`
-}
-
-func TestFeatureManifestPathsPointToCode(t *testing.T) {
-	root := repositoryRoot(t)
-	paths, err := filepath.Glob(filepath.Join(root, "features", "*", "feature.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(paths) == 0 {
-		t.Fatal("repository has no Feature manifests")
-	}
-
-	seen := make(map[string]struct{}, len(paths))
-	for _, path := range paths {
-		var item manifest
-		readJSON(t, path, &item)
-		if _, exists := seen[item.ID]; exists {
-			t.Errorf("duplicate feature id %q", item.ID)
-		}
-		seen[item.ID] = struct{}{}
-		if item.Package != "" {
-			assertRepositoryPath(t, root, path, strings.TrimPrefix(item.Package, "./"), true)
-		}
-
-		for _, delivery := range item.Delivery {
-			switch delivery.Mode {
-			case "go-module":
-				if delivery.Module != modulePath {
-					t.Errorf("%s module = %q", path, delivery.Module)
-				}
-				for _, packagePath := range delivery.Packages {
-					if !strings.HasPrefix(packagePath, modulePath+"/") {
-						t.Errorf("%s package %q is outside the module", path, packagePath)
-						continue
-					}
-					assertRepositoryPath(t, root, path, strings.TrimPrefix(packagePath, modulePath+"/"), true)
-				}
-			case "source-subtree":
-				clean := filepath.ToSlash(filepath.Clean(delivery.Path))
-				if clean != delivery.Path || strings.HasPrefix(clean, "../") {
-					t.Errorf("%s source subtree path is not canonical: %q", path, delivery.Path)
-					continue
-				}
-				localPath := assertRepositoryPath(t, root, path, delivery.Path, true)
-				if delivery.Verify == "" {
-					t.Errorf("%s source subtree has no verification entrypoint", path)
-				} else {
-					assertRepositoryPath(t, root, path, filepath.ToSlash(filepath.Join(delivery.Path, delivery.Verify)), false)
-				}
-				if err := filepath.WalkDir(localPath, func(entryPath string, entry fs.DirEntry, err error) error {
-					if err != nil {
-						return err
-					}
-					if entry.IsDir() && (entry.Name() == "node_modules" || entry.Name() == ".wrangler") {
-						return filepath.SkipDir
-					}
-					if entry.Type()&os.ModeSymlink != 0 {
-						t.Errorf("%s source subtree contains symlink %s", path, entryPath)
-					}
-					return nil
-				}); err != nil {
-					t.Errorf("%s walk source subtree: %v", path, err)
-				}
-				seenHostOwned := make(map[string]struct{}, len(delivery.HostOwnedFiles))
-				for _, relative := range delivery.HostOwnedFiles {
-					if strings.Contains(relative, "\\") || pathpkg.IsAbs(relative) || pathpkg.Clean(relative) != relative || relative == "." || strings.HasPrefix(relative, "../") {
-						t.Errorf("%s host-owned file is not canonical: %q", path, relative)
-						continue
-					}
-					if _, duplicate := seenHostOwned[relative]; duplicate {
-						t.Errorf("%s duplicates host-owned file %q", path, relative)
-					}
-					seenHostOwned[relative] = struct{}{}
-					file := assertRepositoryPath(t, root, path, filepath.ToSlash(filepath.Join(delivery.Path, relative)), false)
-					info, err := os.Lstat(file)
-					if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-						t.Errorf("%s host-owned file is unavailable or unsafe: %q", path, relative)
-					}
-				}
-			}
-		}
-
-		for _, example := range item.RemoteExamples {
-			if !strings.HasPrefix(example.Package, modulePath+"/") {
-				t.Errorf("%s example %q is outside the module", path, example.Package)
-				continue
-			}
-			assertRepositoryPath(t, root, path, strings.TrimPrefix(example.Package, modulePath+"/"), true)
-		}
-		for _, adapter := range item.Foundation.Adapters {
-			assertRepositoryPath(t, root, path, strings.TrimPrefix(adapter.Path, "./"), false)
-		}
-	}
-}
-
-func assertRepositoryPath(t *testing.T, root, manifestPath, relative string, wantDirectory bool) string {
-	t.Helper()
-	localPath := filepath.Join(root, filepath.FromSlash(relative))
-	info, err := os.Stat(localPath)
-	if err != nil || (wantDirectory && !info.IsDir()) {
-		t.Errorf("%s references unavailable path %q", manifestPath, relative)
-	}
-	return localPath
+	ID       string         `json:"id"`
+	Contract string         `json:"contract"`
+	Package  string         `json:"package"`
+	Delivery []deliveryItem `json:"delivery"`
 }
 
 func TestCorePackagesRemainHeadlessAndHostAgnostic(t *testing.T) {

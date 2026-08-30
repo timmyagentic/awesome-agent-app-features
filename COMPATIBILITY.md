@@ -1,6 +1,6 @@
 # Compatibility policy
 
-The published `v0.1.0` module is a pre-1.0 preview of contract v1. Semantic Versioning applies to the reusable foundation, not to host UI or product-specific adapters, but backward compatibility is not promised across `v0.x` minor releases. Integration Agents resolve the remote entry to an exact reviewed commit SHA after successful CI and pin every resource to that SHA; `main` remains discovery-only, not a compatibility promise. Go consumers should use the immutable `v0.1.0` tag or its exact commit.
+The published `v0.1.1` module is a pre-1.0 preview of contract v1. Semantic Versioning applies to the reusable foundation, not to host UI or product-specific adapters, but backward compatibility is not promised across `v0.x` minor releases. Integration Agents resolve the remote entry to an exact reviewed commit SHA after successful CI and pin every resource to that SHA; `main` remains discovery-only, not a compatibility promise. Go consumers should use the immutable `v0.1.1` tag or its exact commit.
 
 ## Supported surface
 

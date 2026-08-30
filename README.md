@@ -43,12 +43,12 @@ invariants 和验证，再实现最薄适配。无法执行的真实客户端、
 同 SHA 的 feature-lock validator 核对实际依赖、delivery 与宿主文件。
 ```
 
-Go consumer 应精确固定 `v0.1.0`；Agent 远程接入仍先把发现入口解析为 CI 成功的完整 commit SHA，使所有资源固定到同一 revision。最低 Go 版本为 1.25：
+Go consumer 应精确固定 `v0.1.1`；Agent 远程接入仍先把发现入口解析为 CI 成功的完整 commit SHA，使所有资源固定到同一 revision。最低 Go 版本为 1.25：
 
 ```bash
-go get github.com/timmyagentic/awesome-agent-app-features@v0.1.0
-go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@v0.1.0
-go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@v0.1.0
+go get github.com/timmyagentic/awesome-agent-app-features@v0.1.1
+go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@v0.1.1
+go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@v0.1.1
 ```
 
 Go 使用 module cache，不会创建本仓库的工作副本。Updater demo 只替换临时目录中的假二进制，不访问 Release，也不触碰已安装产品。

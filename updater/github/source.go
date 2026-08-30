@@ -67,6 +67,7 @@ func (source Source) LatestStable(ctx context.Context) (updater.Release, error) 
 	var wire struct {
 		TagName    string `json:"tag_name"`
 		HTMLURL    string `json:"html_url"`
+		Body       string `json:"body"`
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
 		Assets     []struct {
@@ -81,6 +82,7 @@ func (source Source) LatestStable(ctx context.Context) (updater.Release, error) 
 	release := updater.Release{
 		Tag:        wire.TagName,
 		URL:        wire.HTMLURL,
+		Notes:      wire.Body,
 		Draft:      wire.Draft,
 		Prerelease: wire.Prerelease,
 		Assets:     make([]updater.Asset, 0, len(wire.Assets)),

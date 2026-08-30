@@ -5,8 +5,8 @@
   "name": "User-approved in-product feedback",
   "maturity": "stable",
   "contract": "v1",
-  "release_status": "unreleased",
-  "since": null,
+  "release_status": "released",
+  "since": "v1.0.0",
   "runtime": ["go", "cloudflare-worker"],
   "package": "./feedback",
   "integration_model": "agent-assisted-code-change",
@@ -25,7 +25,8 @@
       "mode": "source-subtree",
       "pin": "resolved-commit",
       "path": "relay/cloudflare",
-      "destination": "host-infrastructure"
+      "destination": "host-infrastructure",
+      "host_owned_files": ["worker-configuration.d.ts", "wrangler.jsonc"]
     }
   ],
   "remote_examples": [
@@ -90,20 +91,23 @@
     "Build a feedback.Input from user prose plus only fresh, relevant context.",
     "Render every field returned by Draft.Report using the host's own UI and localization.",
     "Call Draft.Approve(true) only after the host receives the explicit user action.",
-    "Submit Approved through feedback/httpclient.Client to the self-hosted HTTPS relay.",
+    "Submit Approved through feedback/httpclient.Client to the self-hosted HTTPS relay; if using the reference source subtree, prove it independently in the copied host target.",
     "Handle relay failure without exposing payloads or credentials, and offer the public issue fallback.",
     "Add product-specific redaction and approval regression tests, then record actual delivery, host-relative files, checks, and unverified boundaries in agent-app-features.lock.json."
   ],
   "verification": {
     "remote": [
       "GOWORK=off go test github.com/timmyagentic/awesome-agent-app-features/compat/v1",
-      "GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@{commit}"
+      "GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@{commit}",
+      "GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock@{commit} validate --source {source_dir} --source-commit {commit} --host {host_dir} --lock {host_dir}/agent-app-features.lock.json"
     ],
     "foundation": [
       "go test -race ./feedback/...",
       "go test ./compat/v1 ./internal/contract",
       "npm test --prefix relay/cloudflare",
       "npm run check --prefix relay/cloudflare",
+      "npm run typecheck --prefix relay/cloudflare",
+      "npm run types:check --prefix relay/cloudflare",
       "npm run validate:worker --prefix relay/cloudflare"
     ],
     "host": [

@@ -12,7 +12,7 @@ Prepare
   -> pinned SHA-256
   -> opaque Plan
 
-host renders Plan.Release + Plan.ArchiveAsset
+host renders Plan.Release (including immutable Notes) + Plan.ArchiveAsset
   -> explicit authorization
 
 Apply(the same Plan)
@@ -27,6 +27,8 @@ Apply(the same Plan)
 ```
 
 `Apply` never calls `Source.LatestStable`. A successful later `Prepare` supersedes older plans. A failed `Apply` leaves its plan retryable after the cause is fixed; a successful plan returns `ErrPlanConsumed` if replayed. A plan from another updater or the zero value returns `ErrInvalidPlan`.
+
+`Release.Notes` is publisher-controlled, presentation-neutral text captured in the same exact release metadata as the tag and assets. Hosts may localize, truncate, or ignore it. They must not perform a second latest-release request to obtain display copy after showing a Plan for authorization.
 
 The updater serializes its own operations and same-target installation, but injected `Source`, `VersionVerifier`, and progress callbacks remain host-owned dependencies. They must be safe for the host's concurrency model and must not be reconfigured while an operation is running.
 

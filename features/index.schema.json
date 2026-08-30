@@ -82,10 +82,13 @@
     "lock": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_path", "host_path"],
+      "required": ["schema_path", "host_path", "validator_package"],
       "properties": {
         "schema_path": { "const": "features/integration-lock.schema.json" },
-        "host_path": { "const": "agent-app-features.lock.json" }
+        "host_path": { "const": "agent-app-features.lock.json" },
+        "validator_package": {
+          "const": "github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock"
+        }
       }
     },
     "agent_flow": {

@@ -23,8 +23,9 @@ type stableSource struct{}
 
 func (stableSource) LatestStable(context.Context) (updater.Release, error) {
 	return updater.Release{
-		Tag: "v1.0.0",
-		URL: "https://example.invalid/releases/tag/v1.0.0",
+		Tag:   "v1.0.0",
+		URL:   "https://example.invalid/releases/tag/v1.0.0",
+		Notes: "Consumer release notes",
 	}, nil
 }
 
@@ -131,7 +132,8 @@ func TestUpdaterV1ConsumerContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}
-	if plan.Available() || plan.Release().Tag != "v1.0.0" || plan.ArchiveAsset() != (updater.Asset{}) {
+	if plan.Available() || plan.Release().Tag != "v1.0.0" || plan.Release().Notes != "Consumer release notes" ||
+		plan.ArchiveAsset() != (updater.Asset{}) {
 		t.Fatalf("plan accessors returned unexpected values")
 	}
 	result, err := service.Apply(context.Background(), plan)

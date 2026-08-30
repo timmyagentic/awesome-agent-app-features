@@ -35,8 +35,9 @@ type remoteEntry struct {
 		Forbidden         []string `json:"forbidden"`
 	} `json:"delivery"`
 	Lock struct {
-		SchemaPath string `json:"schema_path"`
-		HostPath   string `json:"host_path"`
+		SchemaPath       string `json:"schema_path"`
+		HostPath         string `json:"host_path"`
+		ValidatorPackage string `json:"validator_package"`
 	} `json:"lock"`
 	AgentFlow []string `json:"agent_flow"`
 	Features  []struct {
@@ -56,7 +57,7 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 		entry.ID != "awesome-agent-app-features" ||
 		entry.Repository != "https://github.com/timmyagentic/awesome-agent-app-features" ||
 		entry.Module != "github.com/timmyagentic/awesome-agent-app-features" ||
-		entry.Contract != "v1" || entry.ReleaseStatus != "unreleased" || entry.Since != nil ||
+		entry.Contract != "v1" || entry.ReleaseStatus != "released" || entry.Since == nil || *entry.Since != "v1.0.0" ||
 		entry.IntegrationModel != "remote-agent-assisted-code-change" {
 		t.Fatalf("unexpected entry identity: %+v", entry)
 	}
@@ -76,11 +77,20 @@ func TestRemoteEntryResolvesEveryFeatureWithoutAClone(t *testing.T) {
 	}
 	assertStringSet(t, "allowed delivery modes", entry.Delivery.AllowedModes, []string{"go-module", "source-subtree"})
 	assertStringSet(t, "forbidden integration paths", entry.Delivery.Forbidden, []string{"user-clone", "git-submodule", "local-replace", "floating-main"})
-	if entry.Lock.SchemaPath != "features/integration-lock.schema.json" || entry.Lock.HostPath != "agent-app-features.lock.json" {
+	if entry.Lock.SchemaPath != "features/integration-lock.schema.json" ||
+		entry.Lock.HostPath != "agent-app-features.lock.json" ||
+		entry.Lock.ValidatorPackage != "github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock" {
 		t.Fatalf("unexpected lock contract: %+v", entry.Lock)
 	}
 	if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(entry.Lock.SchemaPath))); err != nil || !info.Mode().IsRegular() {
 		t.Fatalf("lock schema is unavailable: %v", err)
+	}
+	validatorRelative := strings.TrimPrefix(entry.Lock.ValidatorPackage, entry.Module+"/")
+	if validatorRelative == entry.Lock.ValidatorPackage {
+		t.Fatalf("lock validator is outside the module: %s", entry.Lock.ValidatorPackage)
+	}
+	if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(validatorRelative))); err != nil || !info.IsDir() {
+		t.Fatalf("lock validator package is unavailable: %v", err)
 	}
 	if len(entry.AgentFlow) < 5 {
 		t.Fatalf("agent flow has %d steps", len(entry.AgentFlow))
@@ -128,7 +138,7 @@ func TestUserDocumentationStartsInTheTargetProject(t *testing.T) {
 				t.Errorf("%s contains repository-centric onboarding %q", relative, obsolete)
 			}
 		}
-		for _, required := range []string{"features/index.json", "commit SHA", "agent-app-features.lock.json"} {
+		for _, required := range []string{"features/index.json", "commit SHA", "agent-app-features.lock.json", "feature-lock"} {
 			if !strings.Contains(text, required) {
 				t.Errorf("%s does not explain %q", relative, required)
 			}
@@ -160,8 +170,11 @@ func TestRemoteConsumerCIRunsWithoutARepositoryCheckout(t *testing.T) {
 		"/compat/v1",
 		"/examples/feedback@",
 		"/examples/updater-demo@",
+		"/cmd/feature-lock@",
 		"/relay/cloudflare/package.json",
 		"tar -tvzf",
+		"npm run typecheck",
+		"npm run types:check",
 	} {
 		if !strings.Contains(job, required) {
 			t.Errorf("remote consumer job does not prove %q", required)

@@ -93,6 +93,9 @@ jobs:
         with:
           go-version: 1.27.x
           cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.x
       - name: Resolve and consume the exact remote commit without checkout
         env:
           REMOTE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -107,7 +110,8 @@ jobs:
             .delivery.user_clone_required == false and
             .resolution.immutable_ref == "full-commit-sha" and
             .resolution.required_ci == "CI" and
-            .lock.host_path == "agent-app-features.lock.json"
+            .lock.host_path == "agent-app-features.lock.json" and
+            .lock.validator_package == "github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock"
           ' <<<"${entry}" >/dev/null
           while IFS= read -r manifest; do
             curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "https://raw.githubusercontent.com/${REMOTE_REPOSITORY}/${REMOTE_COMMIT}/${manifest}" | jq -e '.contract == "v1" and .delivery != []' >/dev/null
@@ -122,12 +126,102 @@ jobs:
           test -z "$(tar -tzf "${archive_path}" | grep -E '(^|/)\.\.(/|$)' || true)"
           test -z "$(tar -tvzf "${archive_path}" | awk '$1 ~ /^l/ && $0 ~ /\/relay\/cloudflare\// { print }')"
 
+          archive_root="$(tar -tzf "${archive_path}" | sed -n '1{s#/$##;p;}')"
+          source_directory="${consumer_directory}/source"
+          relay_directory="${consumer_directory}/relay"
+          mkdir -p "${source_directory}" "${relay_directory}"
+          tar -xzf "${archive_path}" -C "${source_directory}" --strip-components=1
+          tar -xzf "${archive_path}" -C "${relay_directory}" --strip-components=3 "${archive_root}/relay/cloudflare"
+
+          (
+            cd "${relay_directory}"
+            npm ci --ignore-scripts
+            npm test
+            npm run check
+            npm run typecheck
+            npm run types:check
+            npm run validate:worker
+            npm audit --audit-level=high
+          )
+
           cd "${consumer_directory}"
           go mod init example.com/remote-agent-consumer
           GOWORK=off GOPROXY=direct go get "${REMOTE_MODULE}@${REMOTE_COMMIT}"
           GOWORK=off GOPROXY=direct go test "${REMOTE_MODULE}/compat/v1"
           GOWORK=off GOPROXY=direct go run "${REMOTE_MODULE}/examples/feedback@${REMOTE_COMMIT}" -description "remote CI preview"
           GOWORK=off GOPROXY=direct go run "${REMOTE_MODULE}/examples/updater-demo@${REMOTE_COMMIT}"
+
+          mkdir -p infrastructure
+          cp -R "${source_directory}/relay/cloudflare" infrastructure/feedback-relay
+          module_version="$(GOWORK=off go list -m -f '{{.Version}}' "${REMOTE_MODULE}")"
+          verified_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          jq -n \
+            --arg commit "${REMOTE_COMMIT}" \
+            --arg version "${module_version}" \
+            --arg verified_at "${verified_at}" \
+            '{
+              schema: 1,
+              source: {
+                repository: "timmyagentic/awesome-agent-app-features",
+                commit: $commit
+              },
+              features: [
+                {
+                  id: "feedback",
+                  contract: "v1",
+                  deliveries: [
+                    {
+                      mode: "go-module",
+                      source: "github.com/timmyagentic/awesome-agent-app-features/feedback",
+                      target: "go.mod",
+                      version: $version
+                    },
+                    {
+                      mode: "go-module",
+                      source: "github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient",
+                      target: "go.mod",
+                      version: $version
+                    },
+                    {
+                      mode: "source-subtree",
+                      source: "relay/cloudflare",
+                      target: "infrastructure/feedback-relay"
+                    }
+                  ],
+                  files: ["go.mod", "go.sum", "infrastructure/feedback-relay/package.json"],
+                  verified_at: $verified_at,
+                  checks: ["remote Feedback preview", "extracted Relay verify"],
+                  unverified: []
+                },
+                {
+                  id: "updater",
+                  contract: "v1",
+                  deliveries: [
+                    {
+                      mode: "go-module",
+                      source: "github.com/timmyagentic/awesome-agent-app-features/updater",
+                      target: "go.mod",
+                      version: $version
+                    },
+                    {
+                      mode: "go-module",
+                      source: "github.com/timmyagentic/awesome-agent-app-features/updater/github",
+                      target: "go.mod",
+                      version: $version
+                    }
+                  ],
+                  files: ["go.mod", "go.sum"],
+                  verified_at: $verified_at,
+                  checks: ["remote Updater transaction"],
+                  unverified: []
+                }
+              ]
+            }' > agent-app-features.lock.json
+          GOWORK=off GOPROXY=direct go run "${REMOTE_MODULE}/cmd/feature-lock@${REMOTE_COMMIT}" validate \
+            --source "${source_directory}" \
+            --source-commit "${REMOTE_COMMIT}" \
+            --host "${consumer_directory}" \
+            --lock "${consumer_directory}/agent-app-features.lock.json"
 
   relay:
     name: Feedback relay (Node ${{ matrix.node }})
@@ -146,9 +240,15 @@ jobs:
       - name: Install locked dependencies without lifecycle scripts
         run: npm ci --prefix relay/cloudflare --ignore-scripts
       - name: Unit, shared-fixture, and workerd tests
-        run: npm test --prefix relay/cloudflare
+        run: |
+          node --test internal/contract/relay_contract.test.mjs
+          npm test --prefix relay/cloudflare
       - name: Syntax check
         run: npm run check --prefix relay/cloudflare
+      - name: Generated bindings and type safety
+        run: |
+          npm run typecheck --prefix relay/cloudflare
+          npm run types:check --prefix relay/cloudflare
       - name: Worker dry run
         run: npm run validate:worker --prefix relay/cloudflare
       - name: Dependency audit

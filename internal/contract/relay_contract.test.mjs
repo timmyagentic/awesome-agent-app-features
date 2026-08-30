@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-import Ajv2020 from "ajv/dist/2020.js";
-import addFormats from "ajv-formats";
+import { _test } from "../../relay/cloudflare/src/relay.js";
 
-const repositoryRoot = new URL("../../../", import.meta.url);
+const repositoryRoot = new URL("../../", import.meta.url);
+const relayRequire = createRequire(new URL("../../relay/cloudflare/package.json", import.meta.url));
+const Ajv2020 = relayRequire("ajv/dist/2020").default;
+const addFormats = relayRequire("ajv-formats").default;
 
 async function readJSON(relativePath) {
   return JSON.parse(await readFile(new URL(relativePath, repositoryRoot), "utf8"));
@@ -31,6 +34,10 @@ test("remote entry and minimal host lock satisfy their schemas", async () => {
   assert.equal(validateEntry(entry), true, JSON.stringify(validateEntry.errors));
   assert.equal(entry.delivery.user_clone_required, false);
   assert.equal(entry.lock.host_path, "agent-app-features.lock.json");
+  assert.equal(
+    entry.lock.validator_package,
+    "github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock",
+  );
 
   for (const feature of entry.features) {
     const manifest = await readJSON(feature.manifest);
@@ -43,7 +50,7 @@ test("remote entry and minimal host lock satisfy their schemas", async () => {
     schema: 1,
     source: {
       repository: "timmyagentic/awesome-agent-app-features",
-      commit: "0".repeat(40),
+      commit: "a".repeat(40),
     },
     features: [
       {
@@ -54,7 +61,7 @@ test("remote entry and minimal host lock satisfy their schemas", async () => {
             mode: "go-module",
             source: "github.com/timmyagentic/awesome-agent-app-features/feedback",
             target: "go.mod",
-            version: "v0.0.0-20260824000000-000000000000",
+            version: "v0.0.0-20260824000000-aaaaaaaaaaaa",
           },
         ],
         files: ["internal/feedback/flow.go"],
@@ -73,13 +80,22 @@ test("remote entry and minimal host lock satisfy their schemas", async () => {
   const secretField = structuredClone(lock);
   secretField.features[0].configuration_values = { endpoint: "secret" };
   assert.equal(validateLock(secretField), false, "lock accepted configuration values");
+
+  const zeroCommit = structuredClone(lock);
+  zeroCommit.source.commit = "0".repeat(40);
+  assert.equal(validateLock(zeroCommit), false, "lock accepted an all-zero source commit");
+
+  const emptyFiles = structuredClone(lock);
+  emptyFiles.features[0].files = [];
+  assert.equal(validateLock(emptyFiles), false, "lock accepted a feature with no claimed host files");
 });
 
-test("Feedback v1 fixtures satisfy or violate the JSON Schema as declared", async () => {
+test("Feedback v1 fixtures satisfy both JSON Schema and the Worker validator", async () => {
   const validate = validator(await readJSON("protocol/feedback/v1/schema.json"));
   for (const name of ["valid-full.json", "valid-minimal.json"]) {
     const fixture = await readJSON(`protocol/feedback/v1/testdata/${name}`);
     assert.equal(validate(fixture), true, `${name}: ${JSON.stringify(validate.errors)}`);
+    assert.equal(_test.validateSubmission(fixture), null, name);
   }
   for (const name of [
     "invalid-schema-v2.json",
@@ -90,5 +106,6 @@ test("Feedback v1 fixtures satisfy or violate the JSON Schema as declared", asyn
   ]) {
     const fixture = await readJSON(`protocol/feedback/v1/testdata/${name}`);
     assert.equal(validate(fixture), false, `${name} unexpectedly satisfied the schema`);
+    assert.notEqual(_test.validateSubmission(fixture), null, name);
   }
 });

@@ -34,10 +34,13 @@ type Asset struct {
 	Size        int64
 }
 
-// Release contains only the release fields the updater trusts.
+// Release contains immutable metadata from the exact release selected by the
+// updater. Notes are presentation-neutral publisher text: hosts may localize,
+// truncate, or ignore them, but Apply never re-resolves them or the release.
 type Release struct {
 	Tag        string
 	URL        string
+	Notes      string
 	Draft      bool
 	Prerelease bool
 	Assets     []Asset

@@ -5,8 +5,8 @@
   "name": "Stable-only standalone updater",
   "maturity": "stable",
   "contract": "v1",
-  "release_status": "unreleased",
-  "since": null,
+  "release_status": "released",
+  "since": "v1.0.0",
   "runtime": ["go"],
   "package": "./updater",
   "integration_model": "agent-assisted-code-change",
@@ -29,11 +29,18 @@
       "package": "github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo",
       "network": "none",
       "side_effects": "temporary-files-only"
+    },
+    {
+      "id": "updater-public-release-transaction",
+      "mode": "go-run",
+      "package": "github.com/timmyagentic/awesome-agent-app-features/examples/updater-live",
+      "network": "required",
+      "side_effects": "temporary-files-only"
     }
   ],
   "foundation": {
     "core": [
-      "Stable-only release policy and immutable exact-plan selection.",
+      "Stable-only release policy and immutable exact-plan selection, including presentation-neutral Release Notes captured from that same release.",
       "Checksum pinned during Prepare, then checksum-before-extract, bounded staging, and strict non-mutating staged and installed version verification during Apply.",
       "Per-target locking, no-clobber backup, replacement, rollback, and UI-neutral progress events."
     ],
@@ -50,7 +57,7 @@
     "host": [
       "Provide current-version truth, executable path, release/archive naming, and strict version output mapping.",
       "Select the supported install-kind adapter before invoking a transaction.",
-      "Enforce authorization and render progress in the product's own channel.",
+      "Enforce authorization and render the exact Plan's release notes and progress in the product's own channel.",
       "Own restart, post-restart acknowledgement, discovery cadence, and failure UX."
     ],
     "excludes": [
@@ -70,6 +77,7 @@
     "Ordinary update flows accept only exact stable tags matching v?X.Y.Z.",
     "Prepare selects the exact release and assets, downloads its checksum manifest, and returns an opaque plan.",
     "Apply installs only that plan and never resolves latest again; a later successful Prepare supersedes older plans.",
+    "Hosts render, localize, truncate, or ignore Plan.Release().Notes without a second latest-release lookup.",
     "The checksum manifest and archive are exact assets on the same selected Release, and the pinned SHA-256 cannot move between confirmation and Apply.",
     "SHA-256 is verified before archive extraction or executable mutation.",
     "The staged binary reports the selected version before replacement and the version probe cannot change its content.",
@@ -95,7 +103,8 @@
   "verification": {
     "remote": [
       "GOWORK=off go test github.com/timmyagentic/awesome-agent-app-features/compat/v1",
-      "GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@{commit}"
+      "GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@{commit}",
+      "GOWORK=off go run github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock@{commit} validate --source {source_dir} --source-commit {commit} --host {host_dir} --lock {host_dir}/agent-app-features.lock.json"
     ],
     "foundation": [
       "go test -race ./updater/...",

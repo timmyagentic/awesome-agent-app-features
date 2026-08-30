@@ -1,6 +1,6 @@
 # Compatibility policy
 
-The repository is stabilizing an unreleased `v1` contract. Once a v1 tag is formally published, it follows Semantic Versioning for the reusable foundation, not for host UI or product-specific adapters. Until then, the integration Agent resolves the remote entry to an exact reviewed commit SHA after successful CI and pins every resource to that SHA; `main` is discovery-only, not a compatibility promise.
+The published `v1.0.0` contract follows Semantic Versioning for the reusable foundation, not for host UI or product-specific adapters. Integration Agents resolve the remote entry to an exact reviewed commit SHA after successful CI and pin every resource to that SHA; `main` remains discovery-only, not a compatibility promise. Stable Go consumers may use the immutable `v1.0.0` tag.
 
 ## Supported surface
 
@@ -25,12 +25,12 @@ The following behavior is stable throughout v1:
 - Only valid `Approved` values emit Feedback schema 1 JSON.
 - The v1 wire endpoint is exactly `POST /v1/feedback`.
 - Feedback v1 rejects unknown fields and enforces its existing field meanings and limits.
-- `Prepare` selects and pins an exact stable release, assets, archive entry, and SHA-256.
+- `Prepare` selects and pins an exact stable release, presentation-neutral Notes, assets, archive entry, and SHA-256.
 - `Apply` never resolves latest and either installs that exact plan or fails/rolls back.
 - Existing updater stage string values and exported sentinel errors remain valid.
 - Every manifest `invariants` item remains a security and compatibility boundary.
 - One integration never mixes delivery commits.
-- The host lock remains metadata only and never substitutes for current host verification.
+- The host lock remains metadata only and never substitutes for current host verification; the stateless validator checks source/delivery/file consistency without turning the lock into lifecycle state.
 
 Hosts should compare sentinel errors with `errors.Is`; complete error text is diagnostic and not a compatibility API. Event consumers must tolerate a new stage added by a future minor release, while existing stages retain their meaning and relative safety boundary.
 

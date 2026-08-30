@@ -58,7 +58,7 @@ host-selected context
 Source.LatestStable
   -> Prepare validates stable metadata and exact assets
   -> Prepare downloads and pins the same-release SHA-256
-  -> opaque Plan rendered and authorized by host
+  -> opaque Plan with exact release Notes rendered and authorized by host
   -> Apply exact Plan (no second latest lookup)
   -> lock, checksum, bounded staging, version checks,
      backup, replacement, cleanup or rollback
@@ -72,12 +72,12 @@ Agent-friendly does not mean a Skill, blind installer, or user-managed foundatio
 
 - `features/index.json` is the single remote entry.
 - `features/*/feature.json` declares responsibilities, delivery, invariants, and checks.
-- `features/integration-lock.schema.json` defines a small visible host record.
+- `features/integration-lock.schema.json` defines a small visible host record; `cmd/feature-lock` performs same-commit stateless semantic validation against actual delivery and host files.
 - Remote `go run package@commit` examples prove public usage without a checkout.
 - `api/v1.txt`, `compat/v1`, JSON Schemas, and shared fixtures prevent accidental drift.
 - Host tests prove the last-mile adapter preserves each invariant.
 
-Go packages arrive through the module cache at one CI-successful commit SHA. Infrastructure templates arrive by extracting only declared source subtrees from the same SHA. Git submodules, local replaces, floating `main`, and a user-managed second checkout are outside the model.
+Go packages arrive through the module cache at one CI-successful commit SHA. Infrastructure templates arrive by extracting only declared source subtrees from the same SHA, and each declared subtree must pass its own gates after independent extraction. Git submodules, local replaces, floating `main`, and a user-managed second checkout are outside the model.
 
 `agent-app-features.lock.json` records source, deliveries, relative host files, checks, and uncertainty. It is deliberately not a lifecycle database: Git provides history, current code provides ownership, and host tests provide truth. An agent can inspect, refine, upgrade, or remove ordinary code without a foundation-defined action state machine.
 

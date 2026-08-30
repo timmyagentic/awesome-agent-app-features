@@ -69,6 +69,8 @@ Go 把模块放入 module cache，并在 `go.mod` 中记录 immutable pseudo-ver
 
 在临时目录下载同 SHA 的 GitHub archive，只提取 manifest 声明的目录，例如 `relay/cloudflare`。提取前检查 archive entries，拒绝 traversal、symlink 和声明目录外文件；完成后删除临时材料。复制后的配置、凭证、部署和维护由宿主负责。没有生产授权时只测试和 dry-run。
 
+声明为 `source-subtree` 的目录必须离开 foundation 根目录后仍然自包含。以 Relay 为例，在最终宿主目标目录执行 `npm ci --ignore-scripts`、`npm test`、`npm run check`、`npm run typecheck`、`npm run types:check`、`npm run validate:worker` 和 `npm audit --audit-level=high`；不能用 foundation checkout 里碰巧存在的 schema、fixture 或 `node_modules` 代替交付物证明。Manifest 的 `host_owned_files` 明确列出复制后允许修改的配置与派生文件；除这些例外外，validator 要求目标中的每个交付文件与同 SHA source-subtree 逐字节一致。目标中新增的宿主文件不作为 foundation 来源证明，仍由宿主代码审查和测试负责。
+
 ## 4. 运行证明
 
 写宿主代码前可以运行同 SHA 的零配置示例：
@@ -82,7 +84,19 @@ Feedback 示例只显示 preview。Updater 示例只更新临时假二进制，�
 
 ## 5. 写入最小 Lock
 
-接入完成后，在目标项目根目录写入可见的 `agent-app-features.lock.json`，并使用同 SHA 的 [integration-lock.schema.json](../features/integration-lock.schema.json) 验证。
+接入完成后，在目标项目根目录写入可见的 `agent-app-features.lock.json`，先使用同 SHA 的 [integration-lock.schema.json](../features/integration-lock.schema.json) 验证结构，再运行同 SHA 的无状态语义 validator：
+
+```bash
+GOWORK=off go run \
+  "github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock@${resolved_commit}" \
+  validate \
+  --source "${temporary_exact_source_root}" \
+  --source-commit "${resolved_commit}" \
+  --host "${target_project_root}" \
+  --lock "${target_project_root}/agent-app-features.lock.json"
+```
+
+`temporary_exact_source_root` 是同 SHA archive 的临时完整解压目录。Validator 不保存状态、不执行宿主检查、不联网替代 CI；它拒绝 mixed-source、重复或不存在的 Feature、未声明 delivery、Go module 版本或内容不一致、subtree 非配置文件来源不一致、缺失 subtree 目标和虚假宿主文件。
 
 Lock 只记录：
 
@@ -115,10 +129,10 @@ Lock 只记录：
 
 ## 后续维护
 
-- 检查：对照 lock、当前依赖、宿主接线和 manifest invariants，只读报告 drift。
+- 检查：固定 lock source，重取同 commit source，先运行 validator，再对照宿主接线和 manifest invariants 只读报告 drift。
 - 验证：固定 lock 中的 source，重跑适用检查，不把历史成功当作当前证据。
 - 优化：在同一 source 下补齐宿主 UX、fallback 或测试。
-- 升级：解析新的 CI-successful commit，比较契约后把所有 delivery 一起迁移并更新 lock，禁止 mixed-source。
+- 升级：解析新的 CI-successful commit，比较 API、manifest 和 invariants 后把所有 delivery 一起迁移，更新 lock 并对新 source 重跑 validator，禁止 mixed-source。
 - 移除：先查当前引用和 Git 历史，只删除确定未共享的接入代码；从 lock 删除对应 Feature，空 lock 可以删除。
 
 这些是 Agent 对普通代码库的操作，不是本仓库维护的 action 状态机。Git 负责历史，宿主测试负责当前真相。
@@ -132,5 +146,6 @@ Lock 只记录：
 - 适用 remote checks、聚焦测试和目标项目完整验证通过；
 - 无法执行的客户端、凭证、部署、付费、重启或生产验证标为 `UNVERIFIED`；
 - `agent-app-features.lock.json` 通过 exact-source schema，并与实际 delivery 和宿主文件一致。
+- 同 SHA stateless validator 通过；source-subtree 在复制后的真实目标位置独立通过自身门禁。
 
 Foundation 自身测试、临时成功输出或历史 lock 都不能替代当前宿主验证。

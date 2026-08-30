@@ -5,8 +5,8 @@
   "repository": "https://github.com/timmyagentic/awesome-agent-app-features",
   "module": "github.com/timmyagentic/awesome-agent-app-features",
   "contract": "v1",
-  "release_status": "unreleased",
-  "since": null,
+  "release_status": "released",
+  "since": "v1.0.0",
   "integration_model": "remote-agent-assisted-code-change",
   "entrypoint": {
     "path": "features/index.json",
@@ -26,7 +26,8 @@
   },
   "lock": {
     "schema_path": "features/integration-lock.schema.json",
-    "host_path": "agent-app-features.lock.json"
+    "host_path": "agent-app-features.lock.json",
+    "validator_package": "github.com/timmyagentic/awesome-agent-app-features/cmd/feature-lock"
   },
   "agent_flow": [
     "Resolve main to one full commit SHA and require successful CI.",
@@ -34,7 +35,7 @@
     "Map the feature responsibilities and invariants to the target project.",
     "Apply only the delivery items declared by the feature.",
     "Run remote conformance and the target project's normal verification.",
-    "Record source, deliveries, files, checks, and unverified boundaries in the visible lock file."
+    "Record source, deliveries, files, checks, and unverified boundaries in the visible lock file, then run the same-commit stateless lock validator."
   ],
   "features": [
     {

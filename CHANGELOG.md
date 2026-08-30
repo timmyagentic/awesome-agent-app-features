@@ -2,10 +2,14 @@
 
 All notable changes are documented here. This project follows Semantic Versioning.
 
-## Unreleased
+## [1.0.0] - 2026-08-30
 
 ### Added
 
+- Stateless same-commit host-lock validation for Feature identity, declared deliveries, Go module version/content, source-subtree targets, and claimed host files.
+- Presentation-neutral Release Notes on exact Updater plans, allowing hosts to preserve release copy without a second floating latest lookup.
+- Independent extracted-subtree Relay verification with generated Worker binding types, type checking, workerd tests, Wrangler dry-run, and dependency audit.
+- An opt-in, temporary-files-only public GitHub Release updater probe for real host release layouts.
 - Stable Agent integration manifests for Feedback and Updater.
 - Provider-neutral Feedback core with fixed allowlists, default plus product redaction, bounded fields, stale-error filtering, deep-copy preview, and opaque explicit approval.
 - Feedback v1 JSON Schema and shared Go/JavaScript contract fixtures.
@@ -17,6 +21,6 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 ### Compatibility
 
-- This work defines the intended first stable contract. No version has been published yet and there are no supported pre-v1 consumers.
+- This release defines the first stable contract. Pre-v1 commit consumers remain unsupported; migrate them to `v1.0.0` or its exact commit.
 - The minimum Go version is 1.25.
 - Feedback wire schema 1 is served only at `POST /v1/feedback`.

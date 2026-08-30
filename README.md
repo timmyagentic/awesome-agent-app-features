@@ -4,7 +4,7 @@
 
 给 Agent 应用复用的无界面 Feature 基座。使用者留在自己的项目中，让 coding agent 从远程契约接入底层能力；卡片、命令、权限、本地化、安装类型和业务流程仍由宿主实现。
 
-这不是 awesome 链接清单、Codex Skills 集合、UI 框架或托管 SaaS。首个稳定版本 `v1.0.0` 包含三项能力：
+这不是 awesome 链接清单、Codex Skills 集合、UI 框架或托管 SaaS。首个公开预览版本 `v0.1.0` 包含三项能力；module 在 `v1.0.0` 前仍明确处于 pre-1.0 阶段：
 
 | 能力 | 本仓库提供 | 宿主提供 |
 | --- | --- | --- |
@@ -36,12 +36,12 @@ invariants 和验证，再实现最薄适配。无法执行的真实客户端、
 同 SHA 的 feature-lock validator 核对实际依赖、delivery 与宿主文件。
 ```
 
-稳定 Go consumer 使用 `v1.0.0`；Agent 远程接入仍先把发现入口解析为 CI 成功的完整 commit SHA，使所有资源固定到同一 revision。最低 Go 版本为 1.25：
+Go consumer 应精确固定 `v0.1.0`；Agent 远程接入仍先把发现入口解析为 CI 成功的完整 commit SHA，使所有资源固定到同一 revision。最低 Go 版本为 1.25：
 
 ```bash
-go get github.com/timmyagentic/awesome-agent-app-features@v1.0.0
-go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@v1.0.0
-go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@v1.0.0
+go get github.com/timmyagentic/awesome-agent-app-features@v0.1.0
+go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@v0.1.0
+go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@v0.1.0
 ```
 
 Go 使用 module cache，不会创建本仓库的工作副本。Updater demo 只替换临时目录中的假二进制，不访问 Release，也不触碰已安装产品。

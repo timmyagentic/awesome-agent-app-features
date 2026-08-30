@@ -4,7 +4,7 @@
 
 Headless feature-foundation code for agent applications. The user stays in the target project while a coding agent integrates low-level capabilities from remote contracts. Cards, commands, authorization, localization, install kinds, and product flow remain host-owned.
 
-This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The first stable release, `v1.0.0`, covers three capabilities:
+This is not an awesome list, Codex Skills collection, UI framework, or hosted SaaS. The first public preview, `v0.1.0`, covers three capabilities; the module remains explicitly pre-1.0 until a future `v1.0.0`:
 
 | Capability | This repository provides | The host provides |
 | --- | --- | --- |
@@ -38,12 +38,12 @@ agent-app-features.lock.json and run the same-commit feature-lock validator
 against the actual dependency, deliveries, and host files.
 ```
 
-Stable Go consumers use `v1.0.0`. Remote Agent integration still resolves discovery to one CI-successful full commit SHA so every resource stays on the same revision. The minimum Go version is 1.25:
+Go consumers should pin exact `v0.1.0`. Remote Agent integration still resolves discovery to one CI-successful full commit SHA so every resource stays on the same revision. The minimum Go version is 1.25:
 
 ```bash
-go get github.com/timmyagentic/awesome-agent-app-features@v1.0.0
-go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@v1.0.0
-go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@v1.0.0
+go get github.com/timmyagentic/awesome-agent-app-features@v0.1.0
+go run github.com/timmyagentic/awesome-agent-app-features/examples/feedback@v0.1.0
+go run github.com/timmyagentic/awesome-agent-app-features/examples/updater-demo@v0.1.0
 ```
 
 Go uses its module cache and creates no working copy of this repository. The Updater demo replaces only a fake executable in a temporary directory; it contacts no Release and touches no installed product.

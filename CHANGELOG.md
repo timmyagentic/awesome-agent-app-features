@@ -4,10 +4,16 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 ## Unreleased
 
+## [0.1.2] - 2026-09-07
+
 ### Fixed
 
-- Feedback redaction now covers quoted JSON/configuration keys, escaped quotes in values, prefixed credential names, Cookie headers, and URL user information before approval and truncation.
+- Feedback redaction now covers quoted JSON/configuration keys, escaped quotes in values, prefixed credential names, Cookie headers, and URL user information before approval and truncation, while preserving ordinary query and fragment content.
 - The Cloudflare Relay refuses to follow GitHub API redirects with its credential or approved report; a Workers-runtime regression verifies the outgoing request policy.
+
+### Compatibility
+
+- The public Go API, Feedback v1 wire protocol, and Updater contract are unchanged. Existing Features retain their original `since: v0.1.0`; the Relay remains a source subtree, not a published npm package.
 
 ## [0.1.1] - 2026-08-31
 

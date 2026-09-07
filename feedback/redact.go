@@ -7,15 +7,21 @@ import (
 
 var (
 	privateKeyRE      = regexp.MustCompile(`(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----`)
-	authorizationRE   = regexp.MustCompile(`(?i)\b(authorization)(\s*:\s*)[^\r\n]+`)
-	secretKVRE        = regexp.MustCompile(`(?i)\b(app[_-]?secret|api[_-]?key|apikey|secret|token|password|access[_-]?key|client[_-]?secret)\b(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
-	identifierKVRE    = regexp.MustCompile(`(?i)\b(user[_-]?id|chat[_-]?id|open[_-]?id|account[_-]?id|tenant[_-]?id)\b(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
+	authorizationRE   = regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|cookie|set-cookie)(\s*:\s*)[^\r\n]+`)
+	secretKVRE        = regexp.MustCompile(`(?i)\b((?:[a-z0-9]+[_-])*(?:app[_-]?secret|api[_-]?key|apikey|secret|(?:access|refresh|id|auth)?token|password|access[_-]?key|client[_-]?secret|authorization|cookie))\b(["']?\s*[=:]\s*)` + redactedValuePattern)
+	identifierKVRE    = regexp.MustCompile(`(?i)\b(user[_-]?id|chat[_-]?id|open[_-]?id|account[_-]?id|tenant[_-]?id)\b(["']?\s*[=:]\s*)` + redactedValuePattern)
+	urlUserInfoRE     = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^\s/@"']+@`)
 	emailRE           = regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`)
 	unixHomePathRE    = regexp.MustCompile(`(/Users/|/home/)[^\s"']+`)
 	windowsHomePathRE = regexp.MustCompile(`[A-Za-z]:\\Users\\[^\s"']+`)
 	jwtRE             = regexp.MustCompile(`\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`)
 	longBlobRE        = regexp.MustCompile(`[A-Za-z0-9+/_=-]{32,}`)
 )
+
+// Diagnostic prose can contain JSON or quoted configuration keys. Consume
+// escaped characters inside a quoted value so an embedded quote cannot expose
+// the remainder of a credential. Reports are prose, not rewritten JSON.
+const redactedValuePattern = `("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)`
 
 // Redact aggressively removes common credential, identifier, email, and home
 // path shapes. A host may wrap this function with additional product-specific
@@ -26,6 +32,7 @@ func Redact(text string) string {
 	text = authorizationRE.ReplaceAllString(text, "$1$2[REDACTED]")
 	text = secretKVRE.ReplaceAllString(text, "$1$2[REDACTED]")
 	text = identifierKVRE.ReplaceAllString(text, "$1$2[REDACTED-ID]")
+	text = urlUserInfoRE.ReplaceAllString(text, "$1[REDACTED]@")
 	text = emailRE.ReplaceAllString(text, "[REDACTED-EMAIL]")
 	text = unixHomePathRE.ReplaceAllString(text, "[REDACTED-PATH]")
 	text = windowsHomePathRE.ReplaceAllString(text, "[REDACTED-PATH]")

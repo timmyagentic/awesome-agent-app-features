@@ -4,6 +4,11 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 ## Unreleased
 
+### Fixed
+
+- Feedback redaction now covers quoted JSON/configuration keys, escaped quotes in values, prefixed credential names, Cookie headers, and URL user information before approval and truncation.
+- The Cloudflare Relay refuses to follow GitHub API redirects with its credential or approved report; a Workers-runtime regression verifies the outgoing request policy.
+
 ## [0.1.1] - 2026-08-31
 
 ### Added

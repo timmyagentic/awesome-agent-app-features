@@ -372,6 +372,9 @@ function githubClient(env) {
     const { headers = {}, signal, ...requestInit } = init;
     return fetch(`https://api.github.com${path}`, {
       ...requestInit,
+      // Workers forward Authorization even across origins when following a
+      // redirect. GitHub API requests are approved only for this exact origin.
+      redirect: "manual",
       signal: signal || AbortSignal.timeout(GITHUB_TIMEOUT_MS),
       headers: {
         ...headers,

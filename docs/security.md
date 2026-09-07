@@ -22,8 +22,9 @@ The discovery URL on `main` is not an immutable dependency and must never be cop
 | Threat | v1 control | Residual risk |
 | --- | --- | --- |
 | Silent reporting | `Report` cannot be JSON-marshaled; provided transport accepts only opaque `Approved`; relay requires `user_approved: true` | A malicious host can bypass its own dependency; review host wiring |
-| Credential or identity leakage | Default redaction always runs before and after `AdditionalRedact`; fixed environment allowlist; UTF-8 byte limits; stale-error window | Product-specific secrets still require host tests; redaction cannot prove absence of all PII |
+| Credential or identity leakage | Default redaction handles quoted configuration/JSON keys, escaped quoted values, prefixed credentials, Cookie headers and URL user information; it runs before and after `AdditionalRedact`, before UTF-8 truncation; fixed environment allowlist and stale-error window | Product-specific secrets still require host tests; redaction cannot prove absence of all PII |
 | Approved POST replayed elsewhere | Client requires exact `/v1/feedback`, remote HTTPS, and refuses all redirects, including custom-client redirect policies | The configured relay receives the approved payload by design |
+| GitHub redirects forward Relay credentials or report content | Every Relay GitHub request uses `redirect: manual`; non-success responses are rejected without following their Location | The configured GitHub API remains trusted; search failure may fall back to creation at the original GitHub origin |
 | Client controls GitHub | v1 rejects title/body/repository/label fields; token, renderer, and repository are server-side | Relay operator must scope and rotate its credential |
 | Memory abuse | Request and GitHub response streams are bounded before JSON parsing | Valid maximum payloads still consume Worker resources |
 | Spam | Required Cloudflare rate-limit binding uses connecting IP when available and one shared fallback bucket otherwise | Data-center-local/eventually consistent counters are an abuse brake, not billing accounting; NAT can over-limit |

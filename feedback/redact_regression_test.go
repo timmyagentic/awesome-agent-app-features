@@ -71,3 +71,18 @@ func TestBuilderRedactsQuotedCredentialsBeforeApprovalAndTruncation(t *testing.T
 		}
 	}
 }
+
+func TestRedactURLUserInfoStopsAtQueryAndFragment(t *testing.T) {
+	for _, input := range []string{
+		`https://example.com?tag=@alice`,
+		`https://example.com#@alice`,
+		`https://example.com/path/@alice`,
+	} {
+		if got := Redact(input); got != input {
+			t.Errorf("non-credential URL changed: got %q, want %q", got, input)
+		}
+	}
+	if got := Redact(`https://test-user:test-secret@example.com?tag=@alice`); strings.Contains(got, "test-secret") || !strings.HasSuffix(got, "?tag=@alice") {
+		t.Errorf("userinfo redaction changed the query or retained credentials: %q", got)
+	}
+}

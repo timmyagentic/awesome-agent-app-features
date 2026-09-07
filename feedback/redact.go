@@ -10,7 +10,7 @@ var (
 	authorizationRE   = regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|cookie|set-cookie)(\s*:\s*)[^\r\n]+`)
 	secretKVRE        = regexp.MustCompile(`(?i)\b((?:[a-z0-9]+[_-])*(?:app[_-]?secret|api[_-]?key|apikey|secret|(?:access|refresh|id|auth)?token|password|access[_-]?key|client[_-]?secret|authorization|cookie))\b(["']?\s*[=:]\s*)` + redactedValuePattern)
 	identifierKVRE    = regexp.MustCompile(`(?i)\b(user[_-]?id|chat[_-]?id|open[_-]?id|account[_-]?id|tenant[_-]?id)\b(["']?\s*[=:]\s*)` + redactedValuePattern)
-	urlUserInfoRE     = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^\s/@"']+@`)
+	urlUserInfoRE     = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^\s/@?\#"']+@`)
 	emailRE           = regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`)
 	unixHomePathRE    = regexp.MustCompile(`(/Users/|/home/)[^\s"']+`)
 	windowsHomePathRE = regexp.MustCompile(`[A-Za-z]:\\Users\\[^\s"']+`)

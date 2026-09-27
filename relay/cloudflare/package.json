@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check src/index.js && node --check src/relay.js && node --check test/index.test.js && node --check test/runtime.spec.js && node --check vitest.config.js",
+    "check": "node --check src/index.js && node --check src/relay.js && node --check src/diagnostic.js && node --check src/report-store.js && node --check test/index.test.js && node --check test/diagnostic.test.js && node --check test/runtime.spec.js && node --check test/diagnostic.runtime.spec.js && node --check vitest.config.js",
     "test": "npm run test:unit && npm run test:runtime",
-    "test:unit": "node --test test/index.test.js",
+    "test:unit": "node --test test/*.test.js",
     "test:runtime": "vitest run --config vitest.config.js",
     "typecheck": "tsc --noEmit",
     "types": "wrangler types worker-configuration.d.ts --include-runtime=false",
@@ -19,9 +19,11 @@
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.1.2",
     "@cloudflare/workers-types": "^5.20260830.1",
+    "@msw/cloudflare": "^0.1.0",
     "@types/node": "^26.4.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
+    "msw": "^2.15.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11",
     "wrangler": "^4.127.1"

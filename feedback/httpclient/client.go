@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -16,12 +17,14 @@ import (
 	"time"
 
 	"github.com/timmyagentic/awesome-agent-app-features/feedback"
+	"github.com/timmyagentic/awesome-agent-app-features/feedback/diagnostic"
 )
 
 const (
 	// EndpointPath is the only wire path supported by this v1 client.
-	EndpointPath          = "/v1/feedback"
-	maxRelayResponseBytes = 64 * 1024
+	EndpointPath           = "/v1/feedback"
+	DiagnosticEndpointPath = "/v2/feedback"
+	maxRelayResponseBytes  = 64 * 1024
 )
 
 // Client sends approved reports to an author-operated relay.
@@ -44,7 +47,43 @@ func (c Client) Submit(ctx context.Context, approved feedback.Approved) (Receipt
 	if err != nil {
 		return Receipt{}, fmt.Errorf("encode feedback: %w", err)
 	}
-	endpoint, err := validateEndpoint(c.Endpoint)
+	return c.submit(ctx, payload, EndpointPath)
+}
+
+// SubmitDiagnostic sends the immutable schema-2 report. Only this protocol
+// supports a retry: its relay durably binds report_id to the exact payload
+// before any downstream mutation. There is no downgrade or v1 fallback.
+func (c Client) SubmitDiagnostic(ctx context.Context, approved diagnostic.Approved) (Receipt, error) {
+	payload, err := json.Marshal(approved)
+	if err != nil {
+		return Receipt{}, fmt.Errorf("encode feedback: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	for attempt := 0; ; attempt++ {
+		receipt, err := c.submit(ctx, payload, DiagnosticEndpointPath)
+		if err == nil || attempt == 1 || ctx.Err() != nil {
+			return receipt, err
+		}
+		var responseError *ResponseError
+		var transportError *url.Error
+		if errors.As(err, &responseError) {
+			if responseError.StatusCode != 502 && responseError.StatusCode != 503 && responseError.StatusCode != 425 {
+				return receipt, err
+			}
+		} else if !errors.As(err, &transportError) {
+			return receipt, err
+		}
+	}
+}
+
+// ResponseError exposes only the relay status, never its diagnostic body.
+type ResponseError struct{ StatusCode int }
+
+func (e *ResponseError) Error() string { return fmt.Sprintf("relay returned HTTP %d", e.StatusCode) }
+
+func (c Client) submit(ctx context.Context, payload []byte, path string) (Receipt, error) {
+	endpoint, err := validateEndpointPath(c.Endpoint, path)
 	if err != nil {
 		return Receipt{}, err
 	}
@@ -91,7 +130,7 @@ func (c Client) Submit(ctx context.Context, approved feedback.Approved) (Receipt
 		return Receipt{}, fmt.Errorf("relay response exceeded %d bytes", maxRelayResponseBytes)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return Receipt{}, fmt.Errorf("relay returned HTTP %d", resp.StatusCode)
+		return Receipt{}, &ResponseError{StatusCode: resp.StatusCode}
 	}
 	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
@@ -113,6 +152,10 @@ func (c Client) Submit(ctx context.Context, approved feedback.Approved) (Receipt
 }
 
 func validateEndpoint(raw string) (*url.URL, error) {
+	return validateEndpointPath(raw, EndpointPath)
+}
+
+func validateEndpointPath(raw, path string) (*url.URL, error) {
 	endpoint, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || endpoint.Host == "" {
 		return nil, fmt.Errorf("feedback endpoint is invalid")
@@ -120,8 +163,8 @@ func validateEndpoint(raw string) (*url.URL, error) {
 	if endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.Opaque != "" {
 		return nil, fmt.Errorf("feedback endpoint must not contain credentials, query parameters, or fragments")
 	}
-	if endpoint.EscapedPath() != EndpointPath {
-		return nil, fmt.Errorf("feedback endpoint path must be %s", EndpointPath)
+	if endpoint.EscapedPath() != path {
+		return nil, fmt.Errorf("feedback endpoint path must be %s", path)
 	}
 	if endpoint.Scheme == "https" {
 		return endpoint, nil

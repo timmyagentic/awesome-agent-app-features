@@ -1,0 +1,11 @@
+{
+  "schema": 2,
+  "user_approved": true,
+  "report_id": "abcdef0123456789abcdef0123456789",
+  "environment": {
+    "product": "Example",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "description": "Please improve diagnostics"
+}

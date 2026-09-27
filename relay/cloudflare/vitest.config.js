@@ -8,6 +8,6 @@ export default defineConfig({
     }),
   ],
   test: {
-    include: ["test/runtime.spec.js"],
+    include: ["test/*.spec.js"],
   },
 });

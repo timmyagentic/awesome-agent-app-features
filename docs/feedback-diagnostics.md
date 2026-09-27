@@ -1,4 +1,4 @@
-# Turn-bound feedback diagnostics (unreleased)
+# Turn-bound feedback diagnostics (v0.1.3)
 
 `feedback/diagnostic` adds a typed diagnostic report to Feedback without changing
 the original `feedback` package's v1 payload or endpoint. Use it when an incident
@@ -61,18 +61,18 @@ to legacy clients.
 
 ## Compatibility decision
 
-This is an additive, unreleased extension under the existing Feedback feature.
+This additive extension is introduced in Foundation v0.1.3 under the existing Feedback feature.
 The v1 `Input`, `Draft`, `Report`, `Approved`, `Client.Submit`, fixtures, strict
 unknown-field behavior, endpoint and no-redirect policy retain their contracts.
 The new package, `Client.SubmitDiagnostic`, `DiagnosticEndpointPath` and typed
 HTTP `ResponseError` are additions; response error text stays unchanged.
 `api/v1.txt` records the expanded public API after this explicit review. The
 feature keeps its historical `since: v0.1.0`; that does not claim v2 was released
-then. Source consumers must pin a CI-successful immutable commit.
+then. Stable consumers must use v0.1.3 or later and pin a CI-successful immutable commit from that release. Release metadata is staged before the annotated tag; tag existence remains the publication truth.
 
 Deploy the same-commit dual-protocol Relay and its migration before releasing a
 host that sends v2. Keep the old route for old clients. Deploying, publishing a
 Foundation tag and releasing the host are separate operational actions. This
-source change does not perform any of them. Hosts can preserve their existing
+Foundation tag does not deploy the Relay or release a host. Hosts can preserve their existing
 commands, cards, approval rules and result messages while changing collection
 and transport internally.

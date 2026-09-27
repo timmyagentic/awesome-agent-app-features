@@ -121,7 +121,10 @@ func (b Builder) Capture(input Diagnostic) Diagnostic {
 		d.Missing = appendUnique(d.Missing, "transport.protocol: unavailable")
 	}
 	if d.Transport.TerminalReceived == nil {
-		d.Missing = appendUnique(d.Missing, "transport.terminal: unavailable")
+		d.Missing = appendUnique(d.Missing, "transport.terminal_received: unavailable")
+	}
+	if d.Transport.TerminalDelivered == nil {
+		d.Missing = appendUnique(d.Missing, "transport.terminal_delivered: unavailable")
 	}
 	if d.Transport.ReadState == "" {
 		d.Missing = appendUnique(d.Missing, "transport.read_state: unavailable")

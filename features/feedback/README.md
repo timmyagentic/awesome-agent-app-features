@@ -32,7 +32,7 @@ The Go core and HTTPS client use `go-module` delivery. The optional Cloudflare r
 
 After integration, record the exact source, actual deliveries, host-relative files, successful checks, and `UNVERIFIED` boundaries in the target's visible `agent-app-features.lock.json`, then run the same-commit `cmd/feature-lock` validator. Never store endpoint values, tokens, payloads, logs, or user identifiers there.
 
-## Turn-bound diagnostics (unreleased)
+## Turn-bound diagnostics (introduced in v0.1.3)
 
 The additive `feedback/diagnostic` package and `/v2/feedback` Relay retain
 long-running incident context and one approved report identity across retries.

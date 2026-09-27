@@ -1,12 +1,13 @@
 # Compatibility policy
 
-The published `v0.1.2` module is a pre-1.0 preview of contract v1. Semantic Versioning applies to the reusable foundation, not to host UI or product-specific adapters, but backward compatibility is not promised across `v0.x` minor releases. Integration Agents resolve the remote entry to an exact reviewed commit SHA after successful CI and pin every resource to that SHA; `main` remains discovery-only, not a compatibility promise. Go consumers should use the immutable `v0.1.2` tag or its exact commit.
+The published `v0.1.3` module is a pre-1.0 preview of contract v1. Semantic Versioning applies to the reusable foundation, not to host UI or product-specific adapters, but backward compatibility is not promised across `v0.x` minor releases. Integration Agents resolve the remote entry to an exact reviewed commit SHA after successful CI and pin every resource to that SHA; `main` remains discovery-only, not a compatibility promise. Go consumers should use the immutable `v0.1.3` tag or its exact commit.
 
 ## Supported surface
 
 The current public Go API consists only of these import paths:
 
 - `github.com/timmyagentic/awesome-agent-app-features/feedback`
+- `github.com/timmyagentic/awesome-agent-app-features/feedback/diagnostic`
 - `github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient`
 - `github.com/timmyagentic/awesome-agent-app-features/updater`
 - `github.com/timmyagentic/awesome-agent-app-features/updater/github`
@@ -22,7 +23,7 @@ The minimum toolchain for the `v0.x` preview line is Go 1.25. Consumers should u
 The following behavior defines contract v1 throughout the current preview line; changing it requires an explicit compatibility review and migration:
 
 - `Draft.Report` returns a deep copy and is not JSON-serializable.
-- Only valid `Approved` values emit Feedback schema 1 JSON.
+- Only valid `feedback.Approved` values emit Feedback schema 1 JSON.
 - The v1 wire endpoint is exactly `POST /v1/feedback`.
 - Feedback v1 rejects unknown fields and enforces its existing field meanings and limits.
 - `Prepare` selects and pins an exact stable release, presentation-neutral Notes, assets, archive entry, and SHA-256.
@@ -33,6 +34,8 @@ The following behavior defines contract v1 throughout the current preview line; 
 - The host lock remains metadata only and never substitutes for current host verification; the stateless validator checks source/delivery/file consistency without turning the lock into lifecycle state.
 
 Hosts should compare sentinel errors with `errors.Is`; complete error text is diagnostic and not a compatibility API. Event consumers must tolerate a new stage added by a future minor release, while existing stages retain their meaning and relative safety boundary.
+
+The additive `feedback/diagnostic` package was introduced in v0.1.3. Its separate opaque approval value emits schema 2 at `/v2/feedback`; legacy v1 types, signatures and wire behavior remain unchanged. See [diagnostic compatibility](docs/feedback-diagnostics.md).
 
 ## Wire evolution
 

@@ -31,3 +31,10 @@ Use [Feedback v1](../../docs/protocol-feedback-v1.md) for the exact wire contrac
 The Go core and HTTPS client use `go-module` delivery. The optional Cloudflare relay uses `source-subtree` delivery: the Agent extracts only `relay/cloudflare` from the same resolved commit into host-owned infrastructure. The manifest marks `wrangler.jsonc` and its generated binding types as host-owned; every other delivered file must byte-match the pinned source when the lock validator runs. That copied directory is self-contained and must independently pass its locked install, unit/workerd tests, syntax, generated-binding type checks, Wrangler dry-run, and dependency audit without reaching back into the foundation root.
 
 After integration, record the exact source, actual deliveries, host-relative files, successful checks, and `UNVERIFIED` boundaries in the target's visible `agent-app-features.lock.json`, then run the same-commit `cmd/feature-lock` validator. Never store endpoint values, tokens, payloads, logs, or user identifiers there.
+
+## Turn-bound diagnostics (introduced in v0.1.3)
+
+The additive `feedback/diagnostic` package and `/v2/feedback` Relay retain
+long-running incident context and one approved report identity across retries.
+The existing v1 package and endpoint remain supported. See
+[the capture, recovery and compatibility contract](../../docs/feedback-diagnostics.md).

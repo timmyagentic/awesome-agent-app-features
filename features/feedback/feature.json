@@ -7,7 +7,10 @@
   "contract": "v1",
   "release_status": "released",
   "since": "v0.1.0",
-  "runtime": ["go", "cloudflare-worker"],
+  "runtime": [
+    "go",
+    "cloudflare-worker"
+  ],
   "package": "./feedback",
   "integration_model": "agent-assisted-code-change",
   "delivery": [
@@ -18,6 +21,7 @@
       "minimum_go": "1.25.0",
       "packages": [
         "github.com/timmyagentic/awesome-agent-app-features/feedback",
+        "github.com/timmyagentic/awesome-agent-app-features/feedback/diagnostic",
         "github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient"
       ]
     },
@@ -26,7 +30,10 @@
       "pin": "resolved-commit",
       "path": "relay/cloudflare",
       "destination": "host-infrastructure",
-      "host_owned_files": ["worker-configuration.d.ts", "wrangler.jsonc"],
+      "host_owned_files": [
+        "worker-configuration.d.ts",
+        "wrangler.jsonc"
+      ],
       "verify": "verify.sh"
     }
   ],
@@ -43,7 +50,8 @@
     "core": [
       "Provider-neutral structured feedback draft and wire schema.",
       "Allowlisted environment fields, redaction, field bounds, stale-error filtering, and capability-gap normalization.",
-      "Opaque explicit-approval type that is the only serializable transport input."
+      "Opaque explicit-approval type that is the only serializable transport input.",
+      "Optional turn-bound diagnostic v2 drafts with immutable report identity, capture-time preservation, explicit missing fields, and bounded runtime/transport facts."
     ],
     "adapters": [
       {
@@ -56,7 +64,7 @@
       }
     ],
     "host": [
-      "Choose which fresh product context is relevant to the report.",
+      "Choose relevant, owned product context; freeze incidents before cleanup and own bounded local retention and retry authorization.",
       "Render every field from Draft.Report in cards, text, CLI, or web UI.",
       "Define the explicit user action that grants approval.",
       "Configure relay availability, failure UX, and a public fallback."
@@ -75,7 +83,7 @@
     "The author can operate a single-tenant HTTPS relay, a Cloudflare Rate Limiting binding, and a repository-scoped GitHub token."
   ],
   "invariants": [
-    "There is one feedback shape; errors and capability gaps are optional context, not categories.",
+    "Each supported wire version has one feedback shape; errors, capability gaps, and turn diagnostics are optional context, not categories.",
     "No report is submitted in the background or before an explicit user action.",
     "Every outbound free-text field is redacted and bounded before approval.",
     "Draft.Report is a deep-copied preview and cannot be JSON-marshaled; only opaque Approved emits Feedback v1 JSON.",
@@ -84,12 +92,15 @@
     "The provided HTTP client never follows redirects for an approved feedback POST.",
     "The provided HTTP client and reference relay use only POST /v1/feedback for wire schema 1.",
     "The client has no GitHub token and cannot select the relay target repository.",
-    "The relay validates schema, approval, fields, and byte limits again."
+    "The relay validates schema, approval, fields, and byte limits again.",
+    "Diagnostic v2 uses an opaque Approved value and exactly POST /v2/feedback; no protocol downgrade or redirect can replay an approved body.",
+    "A v2 report ID is random per report and bound to one payload hash; durable intent precedes downstream mutation, and an unknown outcome never authorizes a blind duplicate create."
   ],
   "integration_steps": [
     "Resolve the remote entry to one CI-successful full commit SHA; fetch this manifest and every delivery item from that same SHA without asking the user to clone the foundation.",
     "Inventory user-visible errors, capability gaps, feedback UI, configuration, and fallback issue URL.",
     "Build a feedback.Input from user prose plus only fresh, relevant context.",
+    "For turn-bound reports, follow docs/feedback-diagnostics.md: capture owned fields before cleanup, preserve PreparedAt and ReportID, deploy the same-commit dual-protocol relay before a v2 host, and retain the existing user approval flow.",
     "Render every field returned by Draft.Report using the host's own UI and localization.",
     "Call Draft.Approve(true) only after the host receives the explicit user action.",
     "Submit Approved through feedback/httpclient.Client to the self-hosted HTTPS relay; if using the reference source subtree, prove it independently in the copied host target.",

@@ -4,6 +4,22 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 ## Unreleased
 
+## [0.1.3] - 2026-09-27
+
+### Added
+
+- Optional turn-bound diagnostics preserve redacted original requests, capture timestamps, runtime/transport facts and an immutable approved report identity.
+- Feedback v2 uses a separate strict endpoint and bounded same-payload retries. The dual-protocol Relay stores durable dispatch intent and receipts, coalesces concurrent attempts and reconciles unknown outcomes without a blind duplicate create.
+
+### Fixed
+
+- Terminal-event receipt and delivery availability are reported independently, including when only one observation is supported by an adapter.
+
+### Compatibility
+
+- Existing Feedback v1 Go/wire contracts and Updater behavior remain unchanged. The diagnostic extension starts in v0.1.3; existing Features preserve their historical `since: v0.1.0`.
+- Deploy the matching dual-protocol Relay and SQLite migration before enabling a v2 host. Publishing this Foundation release does not deploy a Relay or release a host application.
+
 ## [0.1.2] - 2026-09-07
 
 ### Fixed

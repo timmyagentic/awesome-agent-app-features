@@ -271,10 +271,10 @@ async function rateLimited(env, key) {
   return !result.success;
 }
 
-/** @param {Request} request @returns {Promise<unknown>} */
-async function readRequestJSON(request) {
+/** @param {Request} request @param {number} [maximum] @returns {Promise<unknown>} */
+async function readRequestJSON(request, maximum = MAX_REQUEST_BYTES) {
   const contentLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+  if (Number.isFinite(contentLength) && contentLength > maximum) {
     throw new RequestTooLargeError("request body is too large");
   }
   if (!request.body) {
@@ -289,7 +289,7 @@ async function readRequestJSON(request) {
       break;
     }
     total += value.byteLength;
-    if (total > MAX_REQUEST_BYTES) {
+    if (total > maximum) {
       await reader.cancel();
       throw new RequestTooLargeError("request body is too large");
     }
@@ -679,4 +679,13 @@ export const _test = {
   renderGitHubIssue,
   validateRepository,
   validateSubmission,
+};
+
+// Shared adapter primitives. Schema-1 validation and routing remain unchanged;
+// the diagnostic adapter has its own strict schema and endpoint.
+export const protocol = {
+  json, byteLength, isObject, unknownField, validShortString, validText,
+  validTimestamp, validateRepository, validLabel, readRequestJSON,
+  readGitHubJSON, discardResponse, githubClient, validIssueURL,
+  renderGitHubIssue, validateSubmission, RequestTooLargeError,
 };

@@ -1,0 +1,57 @@
+{
+  "schema": 2,
+  "user_approved": true,
+  "report_id": "0123456789abcdef0123456789abcdef",
+  "description": "Export exceeded its turn deadline",
+  "environment": {
+    "product": "Example Agent",
+    "version": "v1.0.0",
+    "os": "darwin",
+    "arch": "arm64",
+    "agent": "example"
+  },
+  "diagnostic": {
+    "capture_version": 1,
+    "started_at": "2026-09-20T00:00:00Z",
+    "occurred_at": "2026-09-21T02:00:00Z",
+    "phase": "turn_deadline",
+    "error_code": "turn_deadline",
+    "request": "Complete the overnight export",
+    "error": "turn deadline exceeded",
+    "runtime": {
+      "backend": "app_server",
+      "agent_version": "1.2.3",
+      "platform": "example",
+      "model": "example-model",
+      "effort": "high",
+      "service_tier": "fast",
+      "mode": "sandbox",
+      "settings_source": "turn_start_request",
+      "idle_timeout_ms": 600000,
+      "max_turn_time_ms": 7200000
+    },
+    "transport": {
+      "process_state": "alive",
+      "read_state": "eof",
+      "last_protocol_ms": 90000,
+      "last_core_ms": 89000,
+      "pending_rpc": 0,
+      "queue_depth": 128,
+      "queue_high_water": 128,
+      "dropped_events": -1,
+      "terminal_received": true,
+      "terminal_delivered": false
+    },
+    "activity": [
+      {
+        "after_ms": 1000,
+        "kind": "tool_start",
+        "name": "read"
+      }
+    ],
+    "missing": [
+      "transport.exit_code: unavailable",
+      "transport.delivery: unavailable"
+    ]
+  }
+}

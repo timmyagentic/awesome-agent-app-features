@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 
-import worker from "../src/index.js";
-import { _test } from "../src/relay.js";
+import { _test, fetchHandler } from "../src/relay.js";
+const worker = {fetch: fetchHandler}; // The production entrypoint is tested in workerd.
 
 function rateLimiter(limit = 5) {
   let count = 0;

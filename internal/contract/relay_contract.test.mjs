@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 import { _test } from "../../relay/cloudflare/src/relay.js";
+import {validateDiagnosticSubmission} from "../../relay/cloudflare/src/diagnostic.js";
 
 const repositoryRoot = new URL("../../", import.meta.url);
 const relayRequire = createRequire(new URL("../../relay/cloudflare/package.json", import.meta.url));
@@ -163,5 +164,20 @@ test("Feedback v1 fixtures satisfy both JSON Schema and the Worker validator", a
     const fixture = await readJSON(`protocol/feedback/v1/testdata/${name}`);
     assert.equal(validate(fixture), false, `${name} unexpectedly satisfied the schema`);
     assert.notEqual(_test.validateSubmission(fixture), null, name);
+  }
+});
+
+test("Feedback v2 fixtures satisfy JSON Schema, strict nested validation and the Go wire", async () => {
+  const validate = validator(await readJSON("protocol/feedback/v2/schema.json"));
+  for (const name of ["valid-full", "valid-minimal"]) {
+    const fixture = await readJSON(`protocol/feedback/v2/testdata/${name}.json`);
+    assert.equal(validate(fixture), true, `${name}: ${JSON.stringify(validate.errors)}`);
+    assert.equal(validateDiagnosticSubmission(fixture), null, name);
+    assert.notEqual(_test.validateSubmission(fixture), null, "v1 must not silently accept v2");
+  }
+  for (const name of ["invalid-unapproved", "invalid-report-id", "invalid-runtime-field", "invalid-tool-arguments", "invalid-negative-counter"]) {
+    const fixture = await readJSON(`protocol/feedback/v2/testdata/${name}.json`);
+    assert.equal(validate(fixture), false, name);
+    assert.notEqual(validateDiagnosticSubmission(fixture), null, name);
   }
 });

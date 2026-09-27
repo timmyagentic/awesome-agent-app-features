@@ -22,11 +22,38 @@ type Report struct{Environment Environment; Description string; RecentError *Rec
 var ErrApprovalRequired error
 var ErrNothingToReport error
 
+package github.com/timmyagentic/awesome-agent-app-features/feedback/diagnostic
+const MaxActivity = 24
+const MaxMissing = 24
+const MaxRequestBytes = 4000
+const MaxResponseBytes = 1200
+const WireSchemaVersion = 2
+func (Approved) MarshalJSON() ([]byte, error)
+func (Builder) Build(Input) (Draft, error)
+func (Builder) Capture(Diagnostic) (Diagnostic)
+func (Draft) Approve(bool) (Approved, error)
+func (Draft) PreparedAt() (time.Time)
+func (Draft) Report() (Report)
+func (Report) MarshalJSON() ([]byte, error)
+type Activity struct{AfterMS int64 `json:"after_ms"`; Kind string `json:"kind"`; Name string `json:"name,omitempty"`}
+type Approved struct{opaque}
+type Builder struct{Now func() (time.Time); AdditionalRedact func(string) (string)}
+type Diagnostic struct{CaptureVersion int `json:"capture_version"`; StartedAt time.Time `json:"started_at"`; OccurredAt time.Time `json:"occurred_at"`; Phase string `json:"phase"`; ErrorCode string `json:"error_code"`; Request string `json:"request,omitempty"`; Response string `json:"response,omitempty"`; Error string `json:"error,omitempty"`; Runtime Runtime `json:"runtime"`; Transport Transport `json:"transport"`; Activity []Activity `json:"activity,omitempty"`; Missing []string `json:"missing,omitempty"`; Truncated []string `json:"truncated,omitempty"`}
+type Draft struct{opaque}
+type Input struct{Description string; RecentError *feedback.RecentError; CapabilityGaps []string; Environment feedback.Environment; Diagnostic *Diagnostic; ReportID string}
+type Report struct{Description string; RecentError *feedback.RecentError; CapabilityGaps []string; Environment feedback.Environment; Diagnostic *Diagnostic; ReportID string}
+type Runtime struct{Backend string `json:"backend,omitempty"`; AgentVersion string `json:"agent_version,omitempty"`; Platform string `json:"platform,omitempty"`; Model string `json:"model,omitempty"`; Effort string `json:"effort,omitempty"`; ServiceTier string `json:"service_tier,omitempty"`; Mode string `json:"mode,omitempty"`; SettingsSource string `json:"settings_source,omitempty"`; IdleTimeoutMS int64 `json:"idle_timeout_ms"`; MaxTurnTimeMS int64 `json:"max_turn_time_ms"`}
+type Transport struct{ProcessState string `json:"process_state,omitempty"`; ReadState string `json:"read_state,omitempty"`; ExitCode *int `json:"exit_code,omitempty"`; LastProtocolMS *int64 `json:"last_protocol_ms,omitempty"`; LastCoreMS *int64 `json:"last_core_ms,omitempty"`; LastDeliveryMS *int64 `json:"last_delivery_ms,omitempty"`; PendingRPC *int `json:"pending_rpc,omitempty"`; QueueDepth *int `json:"queue_depth,omitempty"`; QueueHighWater *int `json:"queue_high_water,omitempty"`; DroppedEvents *int `json:"dropped_events,omitempty"`; TerminalReceived *bool `json:"terminal_received,omitempty"`; TerminalDelivered *bool `json:"terminal_delivered,omitempty"`}
+
 package github.com/timmyagentic/awesome-agent-app-features/feedback/httpclient
+const DiagnosticEndpointPath = "/v2/feedback"
 const EndpointPath = "/v1/feedback"
+func (*ResponseError) Error() (string)
 func (Client) Submit(context.Context, feedback.Approved) (Receipt, error)
+func (Client) SubmitDiagnostic(context.Context, diagnostic.Approved) (Receipt, error)
 type Client struct{Endpoint string; HTTPClient *http.Client; UserAgent string}
 type Receipt struct{ReferenceURL string `json:"reference_url"`; Deduplicated bool `json:"deduplicated,omitempty"`}
+type ResponseError struct{StatusCode int}
 
 package github.com/timmyagentic/awesome-agent-app-features/updater
 const StageAvailable Stage = "available"

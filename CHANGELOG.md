@@ -4,6 +4,10 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 ## Unreleased
 
+### Fixed
+
+- Refresh the Relay development toolchain and pin the patched sharp dependency so the independently extracted source subtree passes the dependency audit. Worker code, Go APIs, and feedback wire contracts remain unchanged.
+
 ## [0.1.3] - 2026-09-27
 
 ### Added

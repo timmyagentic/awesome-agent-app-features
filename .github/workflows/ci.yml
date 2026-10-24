@@ -59,7 +59,7 @@ jobs:
       - name: GitHub Actions workflows
         run: GOWORK=off go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - name: Static analysis
-        run: GOWORK=off go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+        run: GOWORK=off go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 
   fuzz:
     name: Fuzz regression

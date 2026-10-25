@@ -14,3 +14,5 @@ Releases are immutable Go module tags plus reproducible source archives attached
 Never move or reuse a published tag. If a release workflow fails after the tag is public, fix forward with the next patch version unless the tag has not propagated anywhere and repository policy explicitly permits deletion.
 
 The release workflow does not deploy the Cloudflare relay or modify any host product. Those are separately authorized operator actions.
+
+Before publishing, manually dispatch the CI workflow for the exact candidate SHA and wait for its compatibility and active-fuzz jobs as well as the three daily checks. Daily PRs use the three documented required contexts; the workflow name CI remains stable for remote consumers.

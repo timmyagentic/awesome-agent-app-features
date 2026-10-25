@@ -4,6 +4,8 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 ## Unreleased
 
+- Reduce daily CI to Go, remote-consumer and Worker gates; keep additional version/platform compatibility and active fuzzing in manual pre-release CI.
+
 
 - Document the protected squash PR workflow, automatic remote task-branch deletion and existing local branch/worktree archive boundaries.
 ### Fixed

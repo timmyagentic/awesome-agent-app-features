@@ -30,6 +30,27 @@
           "squash"
         ]
       }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Go checks",
+            "integration_id": 15368
+          },
+          {
+            "context": "Remote no-clone consumer",
+            "integration_id": 15368
+          },
+          {
+            "context": "Worker checks",
+            "integration_id": 15368
+          }
+        ]
+      }
     }
   ]
 }

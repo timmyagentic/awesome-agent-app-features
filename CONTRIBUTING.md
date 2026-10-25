@@ -19,3 +19,7 @@ Every Go delivery needs a zero-network `go-run` example. Every source-subtree de
 Discuss a new capability with the [Feature Proposal form](https://github.com/timmyagentic/awesome-agent-app-features/issues/new?template=feature-proposal.yml) before substantial implementation. Use the repository's [Feature PR template](.github/PULL_REQUEST_TEMPLATE/feature.md) so the reusable boundary, host ownership, invariants, real adopter, verification, and `UNVERIFIED` evidence remain reviewable.
 
 Do not add credentials, product identifiers, hosted endpoints, host UI, or a `SKILL.md`. A new delivery mode, wire schema, or compatibility-contract version needs an explicit architecture review rather than a local schema workaround.
+
+## Merge and branch cleanup
+
+Follow [the repository workflow](AGENTS.md#repository-workflow-and-branch-protection): default-branch changes require a PR and squash merging, with resolved review conversations and no administrator bypass. Keep automatic remote-branch deletion enabled. Local branches and worktrees remain for the existing Tingjun Workspace archive workflow; do not use `--delete-branch` during merge. Existing CI requirements remain unchanged.
